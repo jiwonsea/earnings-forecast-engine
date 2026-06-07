@@ -1,0 +1,191 @@
+# SK Hynix (000660.KS) earnings forecast profile
+
+company:
+  name: "SK Hynix"
+  name_kr: "SK하이닉스"
+  ticker_yahoo: "000660.KS"
+  corp_code_dart: "00164779"
+  currency: "KRW"
+  fiscal_year_end_month: 12
+  reporting_unit: "KRW_billion"
+
+segments:
+  - id: "dram"
+    name: "DRAM (HBM + DDR)"
+    sub_components:
+      - "HBM"
+      - "DDR"
+  - id: "nand"
+    name: "NAND"
+  - id: "other"
+    name: "Other"
+
+segment_revenue_split:
+  dram: 0.70
+  nand: 0.25
+  other: 0.05
+
+forecast_window:
+  start_quarter: "2026Q1"
+  n_quarters: 4
+  annual_horizon_years: 2
+
+backtest_window:
+  start_quarter: "2024Q1"
+  end_quarter: "2025Q4"
+  lookback_quarters: 8
+
+# Historical market drivers (Claude 리서치 초안 2026-06-02, 사용자 확정 필요).
+# forward 마진 체인이 2024Q1부터 seed까지 이 실현 ASP factor를 누적.
+# 출처(독립 시장 데이터, 회사 매출 아님 — 순환 회피):
+#   hbm_share    = HBM의 DRAM 매출 비중. SK IR: 3Q24 30%·4Q24 40%, 2025 HBM매출 더블링.
+#   ddr_asp_qoq  = 일반 DRAM contract price 변동. TrendForce: 3Q25 +45~50%, 4Q25 +18~23%, 1Q25 약세.
+#   nand_asp_qoq = NAND contract price 변동. TrendForce: 2Q25 +10~15%, 4Q25 +5~10%, 4Q24 감산 약세.
+#   hbm_asp_qoq  = HBM ASP 변동(상대적 안정, 완만 상승).
+historical_drivers:
+  "2024Q1": { hbm_share: 0.20, hbm_asp_qoq:  0.05, ddr_asp_qoq:  0.05, nand_asp_qoq:  0.08 }
+  "2024Q2": { hbm_share: 0.25, hbm_asp_qoq:  0.05, ddr_asp_qoq:  0.13, nand_asp_qoq:  0.10 }
+  "2024Q3": { hbm_share: 0.30, hbm_asp_qoq:  0.05, ddr_asp_qoq:  0.08, nand_asp_qoq:  0.05 }
+  "2024Q4": { hbm_share: 0.40, hbm_asp_qoq:  0.05, ddr_asp_qoq:  0.05, nand_asp_qoq: -0.03 }
+  "2025Q1": { hbm_share: 0.45, hbm_asp_qoq:  0.03, ddr_asp_qoq: -0.05, nand_asp_qoq: -0.05 }
+  "2025Q2": { hbm_share: 0.50, hbm_asp_qoq:  0.05, ddr_asp_qoq:  0.03, nand_asp_qoq:  0.12 }
+  "2025Q3": { hbm_share: 0.53, hbm_asp_qoq:  0.10, ddr_asp_qoq:  0.47, nand_asp_qoq:  0.08 }
+  "2025Q4": { hbm_share: 0.55, hbm_asp_qoq:  0.10, ddr_asp_qoq:  0.20, nand_asp_qoq:  0.08 }
+
+# 단일 역사 앵커 = 백테스트 윈도 시작 2024Q1 세그먼트 총이익률 (결함 12, 시나리오 독립).
+# 캘리브레이션 규율: 앵커 blended GP를 DART 실측 2024Q1 GP(38.6%, 매출12.43조/GP4.79조)에 고정.
+#   - gm_hbm: 애널리스트 추정 — HBM은 commodity 대비 현저히 고마진(2024 ~60%대). 정확치 비공시.
+#   - gm_ddr: 앵커 항등식에서 역산(blended=38.6% 충족). 2024Q1 DRAM 가격 급반등 반영.
+#   - gm_nand/other: NAND 회복 지연·기타 추정.
+# HBM/DDR split은 비공시라 under-identified — HBM은 리서치, DDR은 잔차. 사용자 확정 필요.
+anchor_margins:
+  gm_hbm: 0.60
+  gm_ddr: 0.46
+  gm_nand: 0.15
+  gm_other: 0.10
+  cost_decline_qoq_hbm: 0.03
+  cost_decline_qoq_ddr: 0.04
+  cost_decline_qoq_nand: 0.04
+
+share_count:
+  weighted_avg_basic: 689000000
+  weighted_avg_diluted: 689000000
+  treasury_shares: 10000000
+  source: "DART quarterly EPS-derived share count draft"
+
+assumptions:
+  bear:
+    probability: 0.25
+    rationale: "Memory cycle softening, weaker HBM competition, conservative ASP and bit growth."
+    dram:
+      bit_growth_qoq:     [0.00, 0.02, 0.03, 0.03]
+      hbm_share_qoq:      [0.32, 0.34, 0.36, 0.38]
+      hbm_asp_yoy:         0.00
+      ddr_asp_qoq:        [-0.03, -0.02, 0.00, 0.01]
+    nand:
+      bit_growth_qoq:     [0.02, 0.03, 0.04, 0.04]
+      asp_qoq:            [-0.05, -0.03, -0.02, 0.00]
+    other:
+      revenue_growth_qoq: [0.00, 0.00, 0.01, 0.01]
+    margins:
+      sga_pct_of_revenue: 0.06
+      rnd_pct_of_revenue: 0.10
+    finance:
+      effective_tax_rate: 0.22
+      net_interest_pct_of_revenue: -0.01
+
+  base:
+    probability: 0.50
+    rationale: "Consensus-like HBM3E ramp and NAND recovery."
+    dram:
+      bit_growth_qoq:     [0.05, 0.06, 0.06, 0.05]
+      hbm_share_qoq:      [0.35, 0.40, 0.44, 0.47]
+      hbm_asp_yoy:         0.10
+      ddr_asp_qoq:        [0.02, 0.02, 0.01, 0.00]
+    nand:
+      bit_growth_qoq:     [0.04, 0.05, 0.05, 0.04]
+      asp_qoq:            [0.00, 0.02, 0.02, 0.01]
+    other:
+      revenue_growth_qoq: [0.01, 0.01, 0.02, 0.02]
+    margins:
+      sga_pct_of_revenue: 0.055
+      rnd_pct_of_revenue: 0.095
+    finance:
+      effective_tax_rate: 0.20
+      net_interest_pct_of_revenue: -0.008
+
+  bull:
+    probability: 0.25
+    rationale: "HBM ASP upside, sustained AI capex cycle, and tight leading-edge supply."
+    dram:
+      bit_growth_qoq:     [0.08, 0.09, 0.09, 0.08]
+      hbm_share_qoq:      [0.38, 0.44, 0.50, 0.54]
+      hbm_asp_yoy:         0.20
+      ddr_asp_qoq:        [0.05, 0.04, 0.03, 0.02]
+    nand:
+      bit_growth_qoq:     [0.06, 0.07, 0.07, 0.06]
+      asp_qoq:            [0.03, 0.05, 0.05, 0.03]
+    other:
+      revenue_growth_qoq: [0.02, 0.03, 0.03, 0.03]
+    margins:
+      sga_pct_of_revenue: 0.052
+      rnd_pct_of_revenue: 0.090
+    finance:
+      effective_tax_rate: 0.19
+      net_interest_pct_of_revenue: -0.005
+
+baselines:
+  prior_4q_avg_margins:
+    gp_margin: null
+    op_margin: null
+    np_margin: null
+  prior_4q_avg_asp:
+    dram_blended: null
+    nand_blended: null
+  prior_4q_capex_krw_bn: null
+
+# Consensus signal layer (Phase B). Structure = Claude scaffold; values = 사용자 확정 필요.
+# - decks: 본인이 C:/temp/earnings_forecast/decks/ 에 둔 IR 실적 deck PDF 매핑.
+#   event_label = 실적이 가리키는 분기, doc_date = 실적발표(콜) 일자 ≈ T0. (드래프트 일자, 본인 확정)
+# - topic_taxonomy: 추출 비교 일관성용 후보 토픽(non-binding hint). 본인이 가감.
+# - event_window: CAR 윈도(거래일). benchmark = 시장지수(^KS11). 229200.KS은 robustness(미사용).
+# - call_brief.mdna: forward 브리핑 입력 DART 보고서 rcpNo(공개뷰어, 키 불요). Phase 0 검증 rcpNo는 예시.
+signal_layer:
+  decks_dir: "C:/temp/earnings_forecast/decks"
+  topic_taxonomy:
+    - "HBM 수요/캐파"
+    - "DRAM 가격"
+    - "NAND 수요/가격"
+    - "AI 서버 수요"
+    - "capex/투자"
+    - "재고"
+    - "선단공정 전환"
+  event_window:
+    primary_days: 1
+    secondary_days: 5
+    benchmark: "^KS11"
+  decks:
+    - { filename: "skhynix_2024q1.pdf", event_label: "2024Q1", period_label: "2024Q1", doc_date: "2024-04-25" }
+    - { filename: "skhynix_2024q2.pdf", event_label: "2024Q2", period_label: "2024Q2", doc_date: "2024-07-25" }
+    - { filename: "skhynix_2024q3.pdf", event_label: "2024Q3", period_label: "2024Q3", doc_date: "2024-10-24" }
+    - { filename: "skhynix_2024q4.pdf", event_label: "2024Q4", period_label: "2024Q4", doc_date: "2025-01-23" }
+    - { filename: "skhynix_2025q1.pdf", event_label: "2025Q1", period_label: "2025Q1", doc_date: "2025-04-24" }
+    - { filename: "skhynix_2025q2.pdf", event_label: "2025Q2", period_label: "2025Q2", doc_date: "2025-07-24" }
+    - { filename: "skhynix_2025q3.pdf", event_label: "2025Q3", period_label: "2025Q3", doc_date: "2025-10-23" }
+    - { filename: "skhynix_2025q4.pdf", event_label: "2025Q4", period_label: "2025Q4", doc_date: "2026-01-22" }
+  call_brief:
+    target_event: "2026Q2"
+    mdna:
+      rcp_no: "20240814003052"        # 예시(2024 반기보고서) — 본인이 최신 분기/사업보고서 rcpNo로 교체
+      period_label: "2026Q1"
+      doc_date: "2026-05-15"
+
+sources:
+  - "DART OpenAPI"
+  - "SK Hynix IR materials"
+  - "Yahoo Finance 000660.KS estimates"
+  - "TrendForce / Counterpoint memory market references"
+
+notes:
+  - "Draft assumptions pending user confirmation."
+  - "Scenario margin blocks intentionally contain only SG&A and R&D after defect 12."
