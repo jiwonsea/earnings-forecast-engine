@@ -1,6 +1,8 @@
 # PLAN — Applying EFE beyond memory: NVIDIA as the test case
 
-Date: 2026-07-10
+Date: 2026-07-10 · **Codex-reviewed 2026-07-10 (`REVIEW_nvidia_codex.md`) —
+review decisions integrated below; the review is binding where it corrects
+this plan.**
 Scope: `earnings-forecast-engine` generic path (`schemas/generic.py`,
 `engine/generic_forecast.py`, `generic_cli.py`, `profiles/nvda.generic.yaml`)
 Basis: `HANDOFF_generic_engine.md` (2026-07-06 session), current
@@ -43,17 +45,28 @@ Forward window rolls from 2026Q1 seed (rev $81.6bn); weighted 2026 quarters
 $89–108bn, EPS $1.94→$2.36. Backtest N=19: rev MAPE 14.2% vs naive RW 18.5%
 (beats RW), EPS MAPE 46.9% vs RW 67.4%, **EPS bias −45.8%**.
 
-Two data-integrity defects dominate that EPS number:
+Three data-integrity defects dominate that EPS number (all Codex-confirmed):
 
-1. **Split-unadjusted EPS history (NEW finding, this session).** The `actuals`
-   EPS series is as-reported: 2019Q3 EPS 1.45 on NI $899M. With the profile's
-   fixed 24.49B diluted shares the model can only produce 899×scale/24.49B ≈
-   0.037 — exactly the reported figure ÷ 40 (= 4:1 split Jul 2021 × 10:1 split
-   Jun 2024). Every pre-split quarter contributes a ~−97% "error" that is pure
-   share-base mismatch, not model error. EDGAR companyfacts EPS is *not*
-   retroactively split-adjusted; any history ingested from it must be adjusted
-   by the cumulative split factor. This alone explains most of the −45.8% bias.
-2. **Partial circularity (known, HANDOFF §데이터 provenance).** Quarterly
+1. **Mixed-basis EPS history (measured, Codex-reproduced).** NI-implied
+   diluted shares step 0.62B → 2.49–2.54B → 24.4–25.0B with seams at 2020Q2
+   and 2023Q2 — data-assembly boundaries, NOT the actual split dates (4:1
+   Jul 2021, 10:1 Jun 2024). The EPS column was assembled from
+   differently-adjusted sources. Mechanism (Codex correction — the original
+   "companyfacts is not split-adjusted" wording was inaccurate): companyfacts
+   holds BOTH the as-filed fact and later filings' retroactively split-adjusted
+   comparatives for the same period (e.g. quarter ended 2020-10-25: 2.12
+   as-filed vs 0.53 in a post-4:1 10-Q; quarter ended 2024-04-28: 5.98 vs
+   0.60 post-10:1). Naive "first/last fact" selection mixes bases — exactly
+   what happened here. Fix requires accession + period + split history
+   together; note old quarters may have NO post-10:1 comparative at all.
+2. **Q4 missing entirely + wrong-year labels (Codex finding).** The `actuals`
+   block has no Q4 row in any year, and some rows' `quarter_label` doesn't
+   match the accession's actual period-end year. The 1-step backtest treats
+   sorted-adjacent rows as consecutive, so Q3→Q1 joins corrupt RW baseline,
+   seasonal slot matching, and every MAPE/MASE/Theil on the current numbers.
+   Fix: restore standalone Q4 = annual − 9M (same accession), add a
+   quarter-contiguity validation.
+3. **Partial circularity (known, HANDOFF §데이터 provenance).** Quarterly
    `actuals` were derived from reported FY totals → backtest revenue MAPE is
    optimistic. Replace with independently reported 10-Q quarters.
 
@@ -68,9 +81,9 @@ year (~1 month offset — matters when aligning Yahoo consensus quarters).
 |-----------------------------------------|------------------------|--------------|
 | EPS bridge / scenario weighting / annual agg | Already shared (`QuarterlyForecast`) | none |
 | Skill metrics (MASE / Theil / vs-consensus) | Not wired (generic_cli has own 1-step MAPE) | small — reuse `engine/skill_metrics.py` |
-| **EPS-error attribution (EFE-1 waterfall)** | Blocked: generic sets `gross_profit=0` → 5-lever bridge undefined | small — either 4-lever variant (rev / OP conv / tax-fin / shares) or ingest COGS from EDGAR and keep 5 levers |
+| **EPS-error attribution (EFE-1 waterfall)** | Blocked: generic sets `gross_profit=0` → 5-lever bridge undefined | small — DECIDED (Codex): separate 4-lever generic function (rev / OP margin / OP→NI / shares); do not parametrize the 5-lever memory version |
 | Below-OP risk band                      | Portable as-is (band over EPS points)  | small |
-| Consensus gap                           | Not wired; Yahoo NVDA coverage is rich and reliable (vs sparse .KS) | medium — quarter alignment (fiscal offset) is the only trap |
+| Consensus gap                           | Not wired; Yahoo NVDA coverage is rich and reliable (vs sparse .KS) | medium — fiscal-quarter mis-join AND `.KS`-specific quality gate both block as-is reuse (see NVDA-2) |
 | Valuation bridge                        | Portable; elasticity remains DRAFT     | none until BVT sensitivity lands |
 | HTML/Plotly report                      | Memory-path only; generic emits MD     | medium — generic branch in `output/*` |
 | Backtest honesty (no-lookahead, rolling seed) | generic backtest is 1-step slot-matched, weaker than memory 9Q protocol | medium |
@@ -79,52 +92,34 @@ year (~1 month offset — matters when aligning Yahoo consensus quarters).
 ## 5. Workstreams
 
 ### NVDA-1: Data integrity (host — network required)
-- Split-adjust the EPS/shares history (cumulative factor per quarter:
-  ×40 before 2021-07, ×10 before 2024-06, ×1 after) or re-derive EPS as
-  NI / split-adjusted shares. Add `split_history:` to the generic profile schema
-  so the adjustment is declared, not silently baked in.
-- Replace derived quarterly `actuals` with independently reported 10-Q values
-  (EDGAR companyfacts, tag-level: Revenues, NetIncomeLoss, EPS diluted,
-  CostOfRevenue for the GP lever). New `pipeline/edgar_fetcher.py` with the
-  same cache pattern as `dart_fetcher` (offline-reproducible).
+
+Codex-ordered sub-stages; **backtest numbers are invalid until all three pass**:
+
+- **1a — companyfacts normalization.** New `pipeline/edgar_fetcher.py`:
+  cache the whole companyfacts blob per CIK (one request preserves every
+  concept + later comparatives for accession audit; concept slices as derived
+  caches if needed). Do NOT share the DART fetcher body (different auth /
+  response shape / rate behavior); share only a tiny HTTP helper (UA, timeout,
+  bounded retry, atomic cache write) if duplication actually appears.
+  Extractor keeps `start/end/fy/fp/form/filed/accn/frame`; a standalone
+  quarter's revenue·NI·COGS·shares should come from the same accession where
+  possible; never mix disclosure vintages when deriving Q2/Q3/Q4 from YTD.
+- **1b — Q4 restoration + label contract.** Standalone Q4 = annual − 9M (same
+  accession); fix wrong-year labels; explicit fiscal↔model label mapping for
+  the Jan-ending fiscal year; quarter-contiguity validation before any
+  backtest runs.
+- **1c — shares normalization + derived EPS.** Add `split_history:
+  [{date, ratio}]` to `GenericProfile` (explicit-assumptions convention,
+  auditable), applied in a normalization layer. Collect per-quarter
+  `WeightedAverageNumberOfDilutedSharesOutstanding`, split-adjust to current
+  basis, then DERIVE `eps_diluted = net_profit × unit_scale /
+  adjusted_diluted_shares` at load. Do NOT recompute historical EPS with the
+  fixed forward 24.49B (that would erase real dilution/buyback variation).
+  Keep original as-filed EPS + accession as provenance notes.
 - Fix Tesla NI/EPS (known HANDOFF item) in the same pass.
-- Verification: re-run `generic_cli.py --profile profiles/nvda.generic.yaml`;
-  EPS bias should collapse from −45.8% to single digits; document before/after.
+- Verification: re-run `generic_cli.py --profile profiles/nvda.generic.yaml`
+  and document before/after. No numeric acceptance guarantee — the −45.8%
+  bias is split-artifact + label-artifact mixed, so measure, don't presume
+  (Codex: single-digit-bias expectation was not warranted).
 
-### NVDA-2: Metrics parity (sandbox-able once NVDA-1 data is cached)
-- Swap `backtest_generic`'s ad-hoc MAPE for `engine/skill_metrics.py`
-  (MASE/Theil vs RW) — one metrics vocabulary across both paths.
-- Add consensus gap: `fetch_consensus("NVDA")` → quarter alignment via fiscal
-  calendar mapping (profile field `fiscal_quarter_offset` or explicit
-  label↔fiscal-quarter map). Vintage discipline identical to memory path.
-- Optional: attribution on generic backtest quarters — 4-lever variant if GP
-  absent, 5-lever once EDGAR COGS lands. Reuses `attribute_eps_error` /
-  EFE-1 waterfall unchanged apart from the lever count.
-
-### NVDA-3: Reporting parity (sandbox)
-- Generic branch in `output/html_builder.py` + `plotly_charts.py`: fan,
-  scenario compare, risk band, attribution waterfall, consensus gap table.
-  Keep MD as the fallback. Same "사후 귀인 — 예측 신호 아님" labeling contract.
-
-Priority: NVDA-1 ≫ NVDA-2 > NVDA-3. NVDA-1 is prerequisite — every metric
-computed before it is polluted by the split artifact and circularity.
-
-## 6. Risks
-- **Regime non-stationarity:** a backtest window straddling FY2023 punishes any
-  constant-margin model; report split-window metrics (pre/post 2023Q1) rather
-  than blending, or start the scored window at 2023Q2.
-- **Fiscal offset:** silently joining calendar-labeled model quarters to Yahoo
-  fiscal quarters would corrupt the consensus gap — make the mapping explicit
-  and tested.
-- **Attribution mis-read:** on the generic path the "opex" lever does not exist
-  (no GP decomposition); label levers accordingly so the waterfall never implies
-  a decomposition the model didn't make.
-- Keep generic ↔ memory paths fully separated (HANDOFF design contract);
-  the 9Q SK Hynix invariant must stay bit-identical through all three
-  workstreams (baseline sha256 recorded 2026-07-10).
-
-## 7. Verification
-- `pytest tests/test_generic_forecast.py -q` + new fetcher/alignment tests.
-- `python generic_cli.py --profile profiles/nvda.generic.yaml` before/after
-  NVDA-1 — record bias collapse in the HANDOFF.
-- Memory path regression: `pytest -q` full suite + 9Q backtest sha256 match.
+### NVDA-2: Metrics parity (sandbo
