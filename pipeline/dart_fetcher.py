@@ -7,6 +7,7 @@ Amounts returned to the engine are KRW billions.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from datetime import date
@@ -17,7 +18,20 @@ from schemas.models import QuarterlyActual, SegmentForecast
 
 ensure_ssl_env()
 
+# Load DART_API_KEY (and peers) from the repo-root .env so ANY entry point that
+# triggers a DART fetch sees the key — including the otherwise-offline generic
+# profile generator, whose CLI does not call load_dotenv itself. Existing env
+# vars win (load_dotenv does not override), so a host-set key is respected.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except ImportError:  # dotenv optional; host may set the key directly
+    pass
+
 import httpx  # noqa: E402
+
+logger = logging.getLogger("earnings-forecast")
 
 CACHE_DIR = Path("reports/.cache")
 API_URL = "https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json"
@@ -81,11 +95,18 @@ def fetch_quarterly_actuals_series(
     end_year: int,
     segment_revenue_split: dict[str, float],
     use_cache: bool = True,
+    skip_unavailable: bool = False,
 ) -> list[QuarterlyActual]:
     """Fetch annual/interim reports and return standalone quarterly actuals.
 
     DART CIS thstrm_amount is already standalone for Q1, H1(Q2) and Q3.
     Q4 is decomposed as annual thstrm_amount minus Q3 thstrm_add_amount.
+
+    skip_unavailable: when True, a quarter whose report cannot be fetched (e.g.
+    a not-yet-filed future quarter probed from an offline sandbox where only
+    cached reports resolve) is skipped with a LOUD warning instead of raising.
+    Intended for read-only diagnostics / tests; production cli keeps the default
+    (raise) so a live data failure is never silently absorbed.
     """
     actuals: list[QuarterlyActual] = []
     for year in range(start_year, end_year + 1):
@@ -96,6 +117,14 @@ def fetch_quarterly_actuals_series(
             except RuntimeError as exc:
                 message = str(exc)
                 if "DART API error 013" in message or "No data" in message:
+                    continue
+                if skip_unavailable:
+                    logger.warning("skipping %sQ%s: %s", year, quarter, exc)
+                    continue
+                raise
+            except Exception as exc:
+                if skip_unavailable:
+                    logger.warning("skipping %sQ%s: %s", year, quarter, exc)
                     continue
                 raise
 

@@ -51,14 +51,18 @@ def to_consensus_record(
 
     Returns:
         ConsensusRecord. Missing values are explicit None, not skipped keys.
-        Notes list records which fields were unavailable for downstream
-        warning display in reports.
+        ``notes`` records every warning for report display (absence + quality);
+        ``quality_notes`` is the subset that are genuine data-quality failures
+        (e.g. implausible implied net margin), which downstream reliability
+        guards gate on — so a benign field absence does not suppress an otherwise
+        valid bridge (Codex follow-up #1).
 
     Raises:
         NotImplementedError: Codex implementation.
     """
     as_of = as_of or date.today()
     notes: list[str] = []
+    quality_notes: list[str] = []
     quarter_labels = _forward_quarters_from_as_of(as_of)
 
     revenue_q: dict[str, float | None] = {}
@@ -90,7 +94,11 @@ def to_consensus_record(
 
     history: dict[str, dict[str, float | None]] = {}
     for row in raw_yahoo.get("earnings_history") or []:
-        period = row.get("period")
+        # yfinance indexes earnings_history by "quarter"; some legacy caches and
+        # the committed fixture key it by "period". Accept either so vintage
+        # consensus history is not silently dropped (empty history -> N=0 in the
+        # surprise-direction / consensus-skill metrics).
+        period = row.get("period") or row.get("quarter")
         if not period:
             continue
         period_date = date.fromisoformat(str(period)[:10])
@@ -101,10 +109,14 @@ def to_consensus_record(
             "surprise_pct": _clean(row.get("surprisePercent")),
         }
 
+    # Absence warnings (display only — NOT reliability failures).
     if not revenue_q:
         notes.append("quarterly revenue consensus unavailable")
     if not eps_q:
         notes.append("quarterly EPS consensus unavailable")
+
+    # Quality failure: implausible implied net margin (yfinance .KS estimates can
+    # be ~3x reality, §①-B). This DOES gate reliability -> both notes + quality_notes.
     if weighted_avg_basic_shares:
         implied_margins: list[float] = []
         for quarter, eps in eps_q.items():
@@ -116,7 +128,9 @@ def to_consensus_record(
             if eps is not None and revenue not in (None, 0):
                 implied_margins.append((eps * weighted_avg_basic_shares / 1_000_000_000.0) / revenue)
         if any(margin > 0.60 for margin in implied_margins):
-            notes.append("yfinance .KS consensus unreliable: implied net margin >60%")
+            msg = "yfinance .KS consensus unreliable: implied net margin >60%"
+            notes.append(msg)
+            quality_notes.append(msg)
 
     return ConsensusRecord(
         ticker=ticker,
@@ -127,4 +141,5 @@ def to_consensus_record(
         eps_estimate_annual=eps_y,
         history=history,
         notes=notes,
+        quality_notes=quality_notes,
     )

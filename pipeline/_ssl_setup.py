@@ -11,7 +11,15 @@ ASCII_CA = r"C:\temp\earnings_forecast\cacert.pem"
 
 
 def ensure_ssl_env() -> None:
-    """Set CA bundle environment variables before http/yfinance imports."""
+    """Set CA bundle environment variables before http/yfinance imports.
+
+    Windows-only: works around libraries that fail when the certifi bundle sits
+    under a non-ASCII home path (e.g. Korean user names). On POSIX the default
+    paths are ASCII already — and running this there would create a literal
+    ``C:\\temp\\...`` file in the repo root (observed sandbox artifact).
+    """
+    if os.name != "nt":
+        return
     if not os.path.exists(ASCII_CA):
         os.makedirs(os.path.dirname(ASCII_CA), exist_ok=True)
         shutil.copy(certifi.where(), ASCII_CA)
