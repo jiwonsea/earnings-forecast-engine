@@ -1,0 +1,69 @@
+# Alphabet (GOOGL) — generic top-down forecast profile.
+# Search/ads/cloud -> generic path. Reported FY2025: revenue >$400B (first time),
+# net income +30% YoY (~$130B), operating margin 31.6%, Q4 EPS $2.82; Google
+# Cloud +48% (Alphabet 8-K / earnings release, 2026).
+name: "Alphabet Inc."
+name_kr: "알파벳(구글)"
+ticker: "GOOGL"
+currency: "USD"
+reporting_unit: "USD_million"
+fiscal_year_end_month: 12
+weighted_avg_diluted: 12150000000       # ~$130B NI / ~$10.7 annual EPS
+
+seed:
+  quarter_label: "2026Q1"
+  revenue_total: 109896
+  net_profit: 62578
+  eps_diluted: 5.11
+
+actuals:
+  - { quarter_label: "2016Q1", revenue_total: 20257, net_profit: 4207, eps_diluted: 6.02, source: "EDGAR companyfacts Revenues 10-Q 0001652044-17-000014 filed 2017-05-02" }
+  - { quarter_label: "2016Q2", revenue_total: 21500, net_profit: 4877, eps_diluted: 7, source: "EDGAR companyfacts Revenues 10-Q 0001652044-17-000026 filed 2017-07-25" }
+  - { quarter_label: "2016Q3", revenue_total: 22451, net_profit: 5061, eps_diluted: 7.25, source: "EDGAR companyfacts Revenues 10-Q 0001652044-17-000042 filed 2017-10-27" }
+  - { quarter_label: "2017Q1", revenue_total: 24750, net_profit: 5426, eps_diluted: 7.73, source: "EDGAR companyfacts Revenues 10-Q 0001652044-18-000016 filed 2018-04-24" }
+  - { quarter_label: "2017Q2", revenue_total: 26010, net_profit: 3524, eps_diluted: 5.01, source: "EDGAR companyfacts Revenues 10-Q 0001652044-18-000027 filed 2018-07-24" }
+  - { quarter_label: "2017Q3", revenue_total: 27772, net_profit: 6732, eps_diluted: 9.57, source: "EDGAR companyfacts Revenues 10-Q 0001652044-18-000035 filed 2018-10-26" }
+  - { quarter_label: "2018Q1", revenue_total: 31146, net_profit: 9401, eps_diluted: 13.33, source: "EDGAR companyfacts Revenues 10-Q 0001652044-19-000015 filed 2019-04-30" }
+  - { quarter_label: "2018Q2", revenue_total: 32657, net_profit: 3195, eps_diluted: 4.54, source: "EDGAR companyfacts Revenues 10-Q 0001652044-18-000027 filed 2018-07-24" }
+  - { quarter_label: "2018Q3", revenue_total: 33740, net_profit: 9192, eps_diluted: 13.06, source: "EDGAR companyfacts Revenues 10-Q 0001652044-18-000035 filed 2018-10-26" }
+  - { quarter_label: "2019Q1", revenue_total: 36339, net_profit: 6657, eps_diluted: 9.5, source: "EDGAR companyfacts Revenues 10-Q 0001652044-19-000015 filed 2019-04-30" }
+  - { quarter_label: "2020Q1", revenue_total: 41159, net_profit: 6836, eps_diluted: 9.87, source: "EDGAR companyfacts Revenues 10-Q 0001652044-21-000020 filed 2021-04-28" }
+  - { quarter_label: "2020Q2", revenue_total: 38297, net_profit: 6959, eps_diluted: 10.13, source: "EDGAR companyfacts Revenues 10-Q 0001652044-21-000047 filed 2021-07-28" }
+  - { quarter_label: "2021Q1", revenue_total: 55314, net_profit: 17930, eps_diluted: 26.29, source: "EDGAR companyfacts Revenues 10-Q 0001652044-21-000020 filed 2021-04-28" }
+  - { quarter_label: "2021Q2", revenue_total: 61880, net_profit: 18525, eps_diluted: 1.36, source: "EDGAR companyfacts Revenues 10-Q 0001652044-21-000047 filed 2021-07-28" }
+  - { quarter_label: "2024Q2", revenue_total: 84742, net_profit: 23619, eps_diluted: 1.89, source: "EDGAR companyfacts Revenues 10-Q 0001652044-25-000062 filed 2025-07-24" }
+  - { quarter_label: "2024Q3", revenue_total: 88268, net_profit: 26301, eps_diluted: 2.12, source: "EDGAR companyfacts Revenues 10-Q 0001652044-25-000091 filed 2025-10-30" }
+  - { quarter_label: "2025Q1", revenue_total: 90234, net_profit: 34540, eps_diluted: 2.81, source: "EDGAR companyfacts Revenues 10-Q 0001652044-26-000048 filed 2026-04-30" }
+  - { quarter_label: "2025Q2", revenue_total: 96428, net_profit: 28196, eps_diluted: 2.31, source: "EDGAR companyfacts Revenues 10-Q 0001652044-25-000062 filed 2025-07-24" }
+  - { quarter_label: "2025Q3", revenue_total: 102346, net_profit: 34979, eps_diluted: 2.87, source: "EDGAR companyfacts Revenues 10-Q 0001652044-25-000091 filed 2025-10-30" }
+  - { quarter_label: "2026Q1", revenue_total: 109896, net_profit: 62578, eps_diluted: 5.11, source: "EDGAR companyfacts Revenues 10-Q 0001652044-26-000048 filed 2026-04-30" }
+
+window:
+  start_quarter: "2026Q2"
+  n_quarters: 4
+
+base:
+  probability: 0.50
+  rationale: "검색 견조 + Google Cloud 40%대 성장, 영업이익률 ~32%. AI capex가 순증가율 제약."
+  revenue_growth_qoq: [0.02, 0.04, 0.04, 0.05]
+  op_margin: 0.316
+  effective_tax_rate: 0.16
+  net_interest_pct_of_revenue: 0.005
+bear:
+  probability: 0.25
+  rationale: "AI 검색 대체 리스크·광고 둔화, 반독점 규제(광고 사업 분할) 압박."
+  revenue_growth_qoq: [0.005, 0.02, 0.02, 0.03]
+  op_margin: 0.29
+  effective_tax_rate: 0.17
+  net_interest_pct_of_revenue: 0.005
+bull:
+  probability: 0.25
+  rationale: "Gemini/클라우드 수익화 가속, 광고 재가속, 마진 확대."
+  revenue_growth_qoq: [0.03, 0.05, 0.055, 0.06]
+  op_margin: 0.34
+  effective_tax_rate: 0.15
+  net_interest_pct_of_revenue: 0.005
+
+notes:
+  - "FY2025 매출 $400B+·순이익 +30%·영업이익률 31.6%는 보고치. 분기 매출 split은 근사 역산."
+  - "보고된 $2.82는 분기(Q4) EPS이며 연간이 아님 — 연간 EPS ~$10.7."
