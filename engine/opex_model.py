@@ -18,6 +18,8 @@ def sanity_check_opex(
     """Return warning strings if implied SG&A / R&D drifts from assumption by > tolerance.
 
     Used for cross-checking that margin_model output is internally consistent.
+    Mirrors margin_model's opex path: fixed + variable split when configured
+    (PLAN_opex_model.md), else the constant (sga + rnd) % of revenue.
 
     Args:
         forecast: Margin-populated forecast.
@@ -26,13 +28,16 @@ def sanity_check_opex(
 
     Returns:
         List of human-readable warnings. Empty list = clean.
-
-    Raises:
-        NotImplementedError: Codex implementation.
     """
     warnings: list[str] = []
-    expected_spread = assumptions.sga_pct_of_revenue + assumptions.rnd_pct_of_revenue
     for quarter in forecast:
+        if assumptions.opex_fixed_krw_bn is not None and quarter.revenue_total > 0:
+            expected_spread = (
+                assumptions.opex_fixed_krw_bn / quarter.revenue_total
+                + assumptions.opex_variable_pct_of_revenue
+            )
+        else:
+            expected_spread = assumptions.sga_pct_of_revenue + assumptions.rnd_pct_of_revenue
         implied_spread = quarter.gp_margin - quarter.op_margin
         if abs(implied_spread - expected_spread) > tolerance:
             warnings.append(

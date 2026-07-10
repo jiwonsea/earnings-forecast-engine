@@ -73,7 +73,7 @@ def project_margins(
         gp_margin = gross_profit / forecast.revenue_total if forecast.revenue_total else 0.0
         gp_margin = min(0.9, gp_margin)
         gross_profit = forecast.revenue_total * gp_margin
-        op_margin = gp_margin - assumptions.sga_pct_of_revenue - assumptions.rnd_pct_of_revenue
+        op_margin = gp_margin - _opex_pct_of_revenue(assumptions, forecast.revenue_total)
         operating_profit = forecast.revenue_total * op_margin
         results.append(
             forecast.model_copy(
@@ -88,6 +88,20 @@ def project_margins(
             )
         )
     return results
+
+
+def _opex_pct_of_revenue(assumptions: MarginAssumptions, revenue_total: float) -> float:
+    """Opex ratio: fixed + variable split when configured, else constant sga + rnd.
+
+    The fixed + variable form captures operating leverage (opex sticky in absolute
+    KRW): the ratio falls as revenue grows. PLAN_opex_model.md. Legacy profiles
+    without the split keep the previous constant-% behaviour bit-identical.
+    """
+    if assumptions.opex_fixed_krw_bn is None:
+        return assumptions.sga_pct_of_revenue + assumptions.rnd_pct_of_revenue
+    if revenue_total <= 0.0:
+        raise ValueError("revenue_total must be positive for fixed+variable opex")
+    return assumptions.opex_fixed_krw_bn / revenue_total + assumptions.opex_variable_pct_of_revenue
 
 
 def _cost_per_bit_margin(

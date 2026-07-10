@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
-from schemas.models import AnchorMargins, MarginAssumptions, MarginBaseline, QuarterlyForecast, SegmentForecast
 from engine.margin_model import project_margins
+from schemas.models import (
+    AnchorMargins,
+    MarginAssumptions,
+    MarginBaseline,
+    QuarterlyForecast,
+    SegmentForecast,
+)
 
 
 def _forecast(hbm_share: float = 0.5) -> QuarterlyForecast:
@@ -80,6 +87,50 @@ def test_margin_responds_to_asp_and_cost_leverage():
     ddr_margin = 1.0 - (1.0 - 0.4) * 0.96 / 1.2
     nand_margin = 1.0 - (1.0 - 0.2) * 0.96 / 0.8
     assert result[0].gp_margin == pytest.approx((60.0 * ddr_margin + 30.0 * nand_margin + 10.0 * 0.1) / 100.0)
+
+
+def test_fixed_plus_variable_opex_captures_operating_leverage():
+    assumptions = MarginAssumptions(
+        sga_pct_of_revenue=0.05,
+        rnd_pct_of_revenue=0.10,
+        opex_fixed_krw_bn=5.0,
+        opex_variable_pct_of_revenue=0.07,
+    )
+
+    result = project_margins([_forecast()], MarginBaseline(), assumptions, _anchor_margins())
+
+    # gp_margin 0.43; opex = 5 + 0.07 * 100 = 12 -> op_margin = 0.43 - 0.12
+    assert result[0].op_margin == pytest.approx(0.31)
+    assert result[0].operating_profit == pytest.approx(31.0)
+
+    # Same assumptions, doubled revenue: fixed part dilutes -> opex ratio falls.
+    big = _forecast().model_copy(
+        update={
+            "revenue_total": 200.0,
+            "revenue_by_segment": [
+                SegmentForecast(segment_id="dram", revenue=120.0),
+                SegmentForecast(segment_id="nand", revenue=60.0),
+                SegmentForecast(segment_id="other", revenue=20.0),
+            ],
+        }
+    )
+    result_big = project_margins([big], MarginBaseline(), assumptions, _anchor_margins())
+    assert result_big[0].gp_margin - result_big[0].op_margin == pytest.approx(0.095)
+
+
+def test_omitting_opex_split_preserves_legacy_constant_ratio():
+    result = project_margins([_forecast()], MarginBaseline(), _margin_assumptions(), _anchor_margins())
+
+    assert result[0].op_margin == pytest.approx(0.43 - 0.15)
+
+
+def test_opex_split_fields_require_both():
+    with pytest.raises(ValidationError):
+        MarginAssumptions(
+            sga_pct_of_revenue=0.05,
+            rnd_pct_of_revenue=0.10,
+            opex_fixed_krw_bn=5.0,
+        )
 
 
 def test_gp_margin_can_go_negative_without_floor():
