@@ -6,10 +6,28 @@ DataFrames are intentionally avoided to keep types explicit and serializable.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def quarter_period_end(label: str) -> date:
+    """Calendar-quarter end date for a ``YYYYQN`` label (FY-December issuer).
+
+    Q1->Mar 31, Q2->Jun 30, Q3->Sep 30, Q4->Dec 31. Used by the overlay
+    lookahead guard; SK Hynix is a December fiscal-year filer, so reporting
+    quarters coincide with calendar quarters.
+    """
+    year_text, quarter_text = label.split("Q", 1)
+    year = int(year_text)
+    quarter = int(quarter_text)
+    if quarter not in (1, 2, 3, 4):
+        raise ValueError(f"invalid quarter label: {label!r}")
+    end_month = quarter * 3
+    if end_month == 12:
+        return date(year, 12, 31)
+    return date(year, end_month + 1, 1) - timedelta(days=1)
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +97,20 @@ class MarginAssumptions(BaseModel):
 
     sga_pct_of_revenue: float
     rnd_pct_of_revenue: float
+    # Optional fixed + variable opex split (operating leverage, PLAN_opex_model.md).
+    # When both are set, margin_model uses
+    #   opex = opex_fixed_krw_bn + opex_variable_pct_of_revenue * revenue
+    # instead of the constant (sga + rnd) % of revenue. Both-or-neither.
+    opex_fixed_krw_bn: float | None = Field(default=None, ge=0.0)
+    opex_variable_pct_of_revenue: float | None = Field(default=None, ge=0.0)
+
+    @model_validator(mode="after")
+    def _opex_split_both_or_neither(self) -> MarginAssumptions:
+        if (self.opex_fixed_krw_bn is None) != (self.opex_variable_pct_of_revenue is None):
+            raise ValueError(
+                "opex_fixed_krw_bn and opex_variable_pct_of_revenue must be set together"
+            )
+        return self
 
 
 class AnchorMargins(BaseModel):
@@ -276,6 +308,10 @@ class ConsensusRecord(BaseModel):
     history: dict[str, dict[str, float | None]] = Field(default_factory=dict)
 
     notes: list[str] = Field(default_factory=list)
+    # Subset of notes that are genuine data-quality failures (e.g. implausible
+    # implied net margin), NOT mere field absence. Downstream reliability guards
+    # (valuation bridge) gate on quality_notes, not on every note.
+    quality_notes: list[str] = Field(default_factory=list)
 
 
 class ConsensusGap(BaseModel):
@@ -314,6 +350,33 @@ class BacktestQuarter(BaseModel):
     direction_match: bool   # model predicted same sign of QoQ change as actual
 
 
+class BacktestSkill(BaseModel):
+    """Naive-baseline-relative skill metrics (engine.skill_metrics).
+
+    Additive overlay on BacktestResult: absolute MAPE / direction hit-ratio are
+    unjudgeable without a reference, so these score the model against a Random
+    Walk (persistence) and, where vintage estimates exist, historical consensus.
+    Every float is None when undefined (no rows, no EPS, no consensus, or a
+    degenerate zero-error baseline) — honest about the small (8Q) sample.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    naive_rw_revenue_mape: float | None  # RW absolute revenue MAPE (reference)
+    naive_rw_eps_mape: float | None      # RW absolute EPS MAPE (reference)
+    n: int = 0                            # quarters scored for revenue metrics
+    n_eps: int = 0                        # quarters scored for EPS metrics
+    mase_revenue: float | None           # model MAE / RW MAE; < 1 -> skill
+    mase_eps: float | None
+    theil_u2_revenue: float | None       # model RMSE / RW RMSE; < 1 -> skill
+    theil_u2_eps: float | None
+    rw_hit_ratio_direction: float | None  # RW's own direction hit-ratio (vs model's)
+    skill_score_eps_vs_consensus: float | None  # 1 - model MAE / consensus MAE; > 0 -> skill
+    surprise_direction_accuracy: float | None   # sign(model-est) == sign(actual-est)
+    n_surprise_scored: int               # quarters with usable vintage consensus
+    trailing_8q: BacktestSkill | None = None
+
+
 class BacktestResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -325,6 +388,45 @@ class BacktestResult(BaseModel):
     hit_ratio_direction: float
     bias_revenue: float   # avg signed error %
     bias_eps: float | None
+
+    skill: BacktestSkill | None = None   # additive; None on legacy / un-wired paths
+
+
+# ---------------------------------------------------------------------------
+# Divergence diagnosis (workstream ①, PLAN_backtest_honesty.md)
+# ---------------------------------------------------------------------------
+
+class DriverAttribution(BaseModel):
+    """Post-mortem attribution of one quarter's model-vs-actual EPS error.
+
+    Realized-ratio bridge:
+        EPS = revenue × (GP/revenue) × (OP/GP) × (NI/OP) × (1e9/shares)
+    Substituting model→actual one lever at a time (in the field order below)
+    and measuring the reduction in relative EPS error yields contributions that
+    sum exactly to ``eps_error_total``. This explains a realized error only —
+    actual ratios are never fed back into the no-look-ahead backtest.
+
+    Each contribution maps to a YAML/assumption lever:
+        revenue       → segment assumptions (bit growth, ASP, hbm_share)
+        gross_margin  → anchor_margins (gm_*, cost_decline_qoq_*)
+        opex          → scenario margins (sga_pct_of_revenue, rnd_pct_of_revenue)
+        tax_finance   → finance (effective_tax_rate, net_interest_pct_of_revenue)
+        shares        → share_count (weighted_avg_basic)
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    quarter_label: str
+    eps_error_total: float          # (model_eps − actual_eps) / actual_eps
+
+    contrib_revenue: float
+    contrib_gross_margin: float
+    contrib_opex: float
+    contrib_tax_finance: float
+    contrib_shares: float
+
+    model_basic_shares: int
+    actual_implied_basic_shares: float   # NI_actual × 1e9 / eps_actual
 
 
 # ---------------------------------------------------------------------------
@@ -427,3 +529,112 @@ class SignalBacktestResult(BaseModel):
     information_coefficient: float | None = None   # Spearman rank corr (signal vs CAR)
     calibration: dict[str, float] = Field(default_factory=dict)
     window_primary: str = "T+1d"
+
+
+# ---------------------------------------------------------------------------
+# Below-OP risk band + overlay layer (PLAN_tax_finance_overlay.md)
+# ---------------------------------------------------------------------------
+# The below-OP block (net financial / FX valuation / one-offs) is structurally
+# volatile and macro-driven, so it is kept OUT of the EPS point estimate and
+# expressed here as (a) a separate error band and (b) date-tagged overlays. None
+# of these models touch QuarterlyForecast, so forecast EPS stays bit-identical.
+
+
+class Overlay(BaseModel):
+    """A date-tagged, lookahead-safe macro/timing/risk factor for one quarter.
+
+    Overlays feed the valuation / risk-band layer, NEVER the EPS point estimate
+    (CLAUDE.md two-layer split). ``magnitude`` is in valuation/risk units
+    (fair-value fraction or risk-band weight) — explicitly NOT an EPS fraction.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    as_of_date: date                 # when the factor became public knowledge
+    target_period_label: str         # quarter it informs, e.g. "2026Q2"
+    driver: str                      # e.g. "USD/KRW FX valuation loss"
+    direction: Literal["risk_up", "neutral", "risk_down"]  # risk to value, not EPS sign
+    magnitude: float                 # valuation/risk-layer units (NOT EPS fraction)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _reject_lookahead(self) -> Overlay:
+        period_end = quarter_period_end(self.target_period_label)
+        if self.as_of_date >= period_end:
+            raise ValueError(
+                f"overlay as_of_date {self.as_of_date} must be before the target "
+                f"period_end {period_end} ({self.target_period_label}) — lookahead"
+            )
+        return self
+
+
+class EpsRiskBandQuarter(BaseModel):
+    """One forecast quarter's EPS point with its below-OP error band."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    period_label: str
+    eps_point: float                 # echoed from QuarterlyForecast, never recomputed
+    eps_lower: float
+    eps_upper: float
+
+
+class EpsRiskBand(BaseModel):
+    """Below-OP EPS error band — a SEPARATE layer over the point estimate.
+
+    Produced by engine.risk_band and consumed by output only; QuarterlyForecast
+    is unchanged, so forecast EPS / MASE / Theil / revenue stay bit-identical.
+    ``method``/``k`` record how ``half_width_pct`` was seeded from the realized
+    8Q below-OP block dispersion; the value itself is user-owned (profile YAML).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenario: Literal["bear", "base", "bull", "weighted"] = "weighted"
+    method: Literal["mad", "trimmed"]
+    k: float
+    half_width_pct: float = Field(..., ge=0.0)
+    quarters: list[EpsRiskBandQuarter]
+    overlays: list[Overlay] = Field(default_factory=list)
+    seam_note: str = ""              # documents the overlay -> valuation/DCF seam
+
+
+class ValuationBridgeResult(BaseModel):
+    """Forecast EPS -> fair-value sensitivity, plus the macro overlay/risk layer.
+
+    Two layers kept numerically separate (CLAUDE.md two-layer split):
+      - Layer 1 (EPS-driven): ``fair_value_delta_pct`` = elasticity × EPS gap vs
+        consensus, with a band projection from the below-OP EPS band half-width.
+      - Layer 2 (macro): ``overlay_risk_score`` from date-tagged overlays — an
+        entry-timing/risk signal that is NEVER folded into the layer-1 delta.
+
+    Read-only over ScenarioTree; forecast EPS is unaffected.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    fiscal_year: int
+    model_eps_fy: float
+    consensus_eps_fy: float | None
+    eps_delta_pct: float | None          # (model - consensus) / consensus
+    elasticity: float
+    fair_value_delta_pct: float | None   # elasticity × eps_delta_pct (layer 1)
+    fair_value_delta_low: float | None = None   # band lower projection
+    fair_value_delta_high: float | None = None  # band upper projection
+    overlay_risk_score: float = 0.0      # layer 2 — macro, NOT in fair_value_delta
+    overlays: list[Overlay] = Field(default_factory=list)
+    note: str = ""
+
+
+class ValuationConfig(BaseModel):
+    """Validated valuation-bridge config (profile ``valuation:`` section).
+
+    Replaces the raw-dict passthrough so a typo or a negative elasticity fails at
+    profile load rather than as a runtime arithmetic error / silent sign flip
+    (Codex follow-up #2). Both knobs are user-owned drafts.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    fair_value_elasticity: float = Field(default=1.2, ge=0.0)
+    overlay_weight: float = Field(default=1.0, ge=0.0)

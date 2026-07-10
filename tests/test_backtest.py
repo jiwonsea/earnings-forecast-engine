@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -163,7 +165,10 @@ def test_backtest_eps_matches_forward_engine_chain():
     expected = project_quarterly_revenue(history[3], baseline, _assumptions(), 1)
     expected = project_margins(expected, baseline, margin_assumptions, anchor_margins)
     expected = apply_taxes_and_finance(expected, finance_assumptions)
-    expected = project_eps(expected, shares)
+    # backtest scores each quarter with the SEED-implied share count (no-lookahead);
+    # the synthetic seeds imply 0.2*rev bn NI / rev EPS = 200M shares.
+    implied_shares = SharesOutstanding(weighted_avg_basic=200_000_000, weighted_avg_diluted=200_000_000)
+    expected = project_eps(expected, implied_shares)
 
     assert result.quarters[0].model_eps == pytest.approx(expected[0].eps_basic)
 
@@ -192,9 +197,76 @@ def test_backtest_uses_historical_hbm_share_for_target_quarter():
     expected = [expected[0].model_copy(update={"hbm_share": 1.0})]
     expected = project_margins(expected, baseline, margin_assumptions, anchor_margins)
     expected = apply_taxes_and_finance(expected, finance_assumptions)
-    expected = project_eps(expected, shares)
+    # backtest scores each quarter with the SEED-implied share count (no-lookahead);
+    # the synthetic seeds imply 0.2*rev bn NI / rev EPS = 200M shares.
+    implied_shares = SharesOutstanding(weighted_avg_basic=200_000_000, weighted_avg_diluted=200_000_000)
+    expected = project_eps(expected, implied_shares)
 
     assert result.quarters[0].model_eps == pytest.approx(expected[0].eps_basic)
+
+
+def test_anchor_quarter_reproduces_actual_gross_margin():
+    """Anchor quarter (first backtest quarter) must reproduce the DART actual GP margin.
+
+    The profile calibrates anchor_margins so the 2024Q1 blended GP equals the DART
+    actual (~38.6%). The anchor quarter is the reference point of the cost-per-bit
+    chain, so it must be projected with margin_periods_since_anchor == 0 and ASP
+    factor == 1.0 — no cost-decline / ASP leverage applied to the anchor itself.
+
+    Skips where the DART pipeline / SSL setup or the committed cache is unavailable
+    (e.g. bare CI); runs on the Windows host and against reports/.cache/.
+    """
+    os.environ.setdefault("DART_API_KEY", "cache-only")
+    try:
+        from engine.backtest import iter_backtest_forecasts as _iter
+        from pipeline.dart_fetcher import fetch_quarterly_actuals_series
+        from pipeline.ir_loader import load_profile
+    except Exception as exc:  # pragma: no cover - env-dependent (Windows SSL path)
+        pytest.skip(f"DART pipeline unavailable: {exc}")
+
+    profile_path = Path(__file__).resolve().parents[1] / "profiles" / "sk_hynix.yaml"
+    profile = load_profile(profile_path)
+    window = profile["backtest_window"]
+    start_quarter = str(window["start_quarter"])
+    end_quarter = str(window["end_quarter"])
+    lookback = int(window["lookback_quarters"])
+
+    def _key(label: str) -> tuple[int, int]:
+        year_text, quarter_text = label.split("Q", 1)
+        return int(year_text), int(quarter_text)
+
+    try:
+        actuals = fetch_quarterly_actuals_series(
+            profile["company"].corp_code_dart,
+            int(start_quarter[:4]) - 1,
+            int(end_quarter[:4]),
+            profile["segment_revenue_split"],
+            use_cache=True,
+            skip_unavailable=True,
+        )
+    except Exception as exc:  # pragma: no cover - needs DART cache or network
+        pytest.skip(f"DART actuals unavailable: {exc}")
+
+    history = [a for a in actuals if _key(a.quarter_label) <= _key(end_quarter)]
+    base_assumptions, base_margin, base_finance = profile["scenarios"]["base"]
+    rows = list(
+        _iter(
+            history,
+            base_assumptions,
+            base_margin,
+            profile["anchor_margins"],
+            base_finance,
+            profile["shares"],
+            profile["historical_drivers"],
+            lookback,
+        )
+    )
+
+    _seed, target, forecast = rows[0]
+    assert target.quarter_label == start_quarter
+    model_gp_margin = forecast.gross_profit / forecast.revenue_total
+    actual_gp_margin = target.gross_profit / target.revenue_total
+    assert model_gp_margin == pytest.approx(actual_gp_margin, abs=0.015)
 
 
 def test_backtest_accumulates_historical_asp_indexes_from_window_anchor():
@@ -258,20 +330,63 @@ def test_backtest_accumulates_historical_asp_indexes_from_window_anchor():
         ),
         1,
     )
+    # The first scored quarter (2024Q1) is the anchor reference (periods=0, ASP=1.0).
+    # The second scored quarter (2024Q2) carries exactly ONE post-anchor step: the
+    # 2024Q2 driver qoq only. (Pre-fix this double-counted the anchor's own qoq,
+    # yielding asp 1.10*1.10 and periods=2.)
     expected = [
         expected[0].model_copy(
             update={
                 "hbm_share": 0.0,
                 "asp_hbm": 1.0,
-                "asp_ddr": 1.10 * 1.10,
-                "asp_nand": 1.10 * 1.10,
-                "margin_periods_since_anchor": 2,
+                "asp_ddr": 1.10,
+                "asp_nand": 1.10,
+                "margin_periods_since_anchor": 1,
             }
         )
     ]
     expected = project_margins(expected, baseline, margin_assumptions, anchor_margins)
     expected = apply_taxes_and_finance(expected, finance_assumptions)
-    expected = project_eps(expected, shares)
+    # backtest scores each quarter with the SEED-implied share count (no-lookahead);
+    # the synthetic seeds imply 0.2*rev bn NI / rev EPS = 200M shares.
+    implied_shares = SharesOutstanding(weighted_avg_basic=200_000_000, weighted_avg_diluted=200_000_000)
+    expected = project_eps(expected, implied_shares)
 
     assert result.quarters[1].model_eps == pytest.approx(expected[0].eps_basic)
     assert result.quarters[1].model_revenue == pytest.approx(expected[0].revenue_total)
+
+
+def test_backtest_uses_seed_implied_shares_with_profile_fallback():
+    from engine.backtest import iter_backtest_forecasts
+
+    history = [_actual(i, 100.0) for i in range(4)] + [_actual(4, 120.0)]
+    rows = list(
+        iter_backtest_forecasts(
+            history,
+            _assumptions(),
+            _margin_assumptions(),
+            _anchor_margins(),
+            _finance_assumptions(),
+            _shares(),
+            lookback_quarters=1,
+        )
+    )
+    _seed, _target, with_implied = rows[0]
+
+    # Seed without usable EPS -> falls back to the profile share count (1e9),
+    # which is 5x the implied 200M -> model EPS shrinks 5x.
+    blind_history = history[:3] + [history[3].model_copy(update={"eps_basic": None})] + history[4:]
+    rows = list(
+        iter_backtest_forecasts(
+            blind_history,
+            _assumptions(),
+            _margin_assumptions(),
+            _anchor_margins(),
+            _finance_assumptions(),
+            _shares(),
+            lookback_quarters=1,
+        )
+    )
+    _seed, _target, with_fallback = rows[0]
+
+    assert with_implied.eps_basic == pytest.approx(with_fallback.eps_basic * 5.0)
