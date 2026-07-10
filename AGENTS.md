@@ -157,3 +157,5 @@ pytest -k "scenario"                       # 키워드 매칭
 
 ## Plan Reference
 원안: `C:\Users\김지원\.claude\plans\glittery-juggling-candle.md`
+
+## Imported Claude Cowork project instructions

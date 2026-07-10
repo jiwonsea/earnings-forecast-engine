@@ -1,62 +1,83 @@
 # Earnings Forecast Engine — Project Memory
 
+<!-- This file is auto-loaded every session. Keep it English and tight: each line must prevent a likely mistake. User-facing report/terminal output stays Korean; everything else (code, comments, config, this file) is English for token economy. -->
+
 ## Purpose
-분기·연간 EPS forward 모델 + 컨센서스 갭 + backtest. **마이다스에셋자산운용 리서치 면접 (2026-05-18) 후속**으로 시작 — 입사 후 6개월 목표("컨센과 본질가치 괴리 탐색")를 산출물로 뒷받침. 단, 다른 운용사·증권사 직무에도 재활용 가능한 일반 자산.
+Quarterly/annual forward-EPS model + consensus gap + backtest. Started as follow-up to the Midas Asset Management research interview (2026-05-18) — backs the stated 6-month goal ("find gaps between consensus and intrinsic value") with a concrete artifact. Built to be reusable for other buy-side / sell-side roles.
 
 ## Sibling Repos
-- `F:\dev\Portfolio\business-valuation-tool` (BVT) — 정적 valuation 7엔진, growth는 CAGR-fade 수준
-- `F:\dev\Portfolio\fx-reserves-analyzer` — 거시 VAR/FEVD
-- 본 repo는 BVT growth/DCF의 forward earnings 보완
+- `F:\dev\Portfolio\business-valuation-tool` (BVT) — static valuation, 7 engines; growth is CAGR-fade only.
+- `F:\dev\Portfolio\fx-reserves-analyzer` — macro VAR / FEVD.
+- This repo supplies the forward-earnings layer BVT's growth/DCF lacks.
 
 ## Structure
 ```
 earnings-forecast-engine/
-├── cli.py                    # 진입점
-├── profiles/sk_hynix.yaml    # 회사별 가정 (BVT profiles/ 패턴)
-├── engine/                   # 순수 함수 (IO 없음)
-├── pipeline/                 # IO 전용 (Yahoo·DART)
-├── schemas/models.py         # Pydantic v2 (BVT 단일 파일 패턴)
-├── output/                   # HTML(primary) + MD + xlsx + 차트
+├── cli.py                    # entry point
+├── profiles/sk_hynix.yaml    # per-company assumptions (BVT profiles/ pattern)
+├── engine/                   # pure functions (no IO)
+├── pipeline/                 # IO only (Yahoo, DART)
+├── schemas/models.py         # Pydantic v2 (BVT single-file pattern)
+├── output/                   # HTML (primary) + MD + xlsx + charts
 ├── tests/                    # pytest
 └── docs/                     # methodology, thesis, AI collaboration
 ```
 
 ## Conventions
-- 코드·docstring·주석: 영어
-- 사용자 대면 출력 (리포트·터미널): 한국어
-- Pydantic v2, no DataFrames in engine returns (Pydantic 모델만)
-- 가정 수치는 모두 `profiles/*.yaml` — 코드 하드코딩 금지
-- 파일 IO 시 `encoding='utf-8'` 명시 (Windows cp949 회피)
+- Code, docstrings, comments, config, and this file: English. User-facing output only (reports, terminal): Korean.
+- Pydantic v2; engine returns Pydantic models, never DataFrames.
+- All assumptions live in `profiles/*.yaml` — never hardcode numbers in code.
+- Explicit `encoding='utf-8'` on every file IO (Windows cp949 guard).
 
 ## Data Sources
-- **Yahoo Finance** (yfinance) — 컨센서스·실적·주가. `000660.KS` 등 KS 티커.
-- **DART OpenAPI** — 분기 재무제표. corp_code 캐시: SK하이닉스 = `00164779`.
-- **수동 IR 가정** — `profiles/{company}.yaml` 의 `assumptions:` 섹션.
+- **Yahoo Finance** (yfinance) — consensus, actuals, price. KS tickers e.g. `000660.KS`.
+- **DART OpenAPI** — quarterly financials. corp_code cache: SK Hynix = `00164779`.
+- **Manual IR assumptions** — `assumptions:` section of `profiles/{company}.yaml`.
 
-## AI Collaboration Split (BVT와 동일)
-- **사람**: 방법론 선정·가정 수치·결과 해석·thesis 작성·면접 답변
-- **Codex CLI**: 코드 구현·리팩토링·테스트·Pydantic 스키마·템플릿 보일러플레이트
-- README·`docs/ai_collaboration.md`에 명시. CLAUDE.md·AGENTS.md·`.codex/` 메타 디렉토리 삭제 금지 (2026-04-27 사용자 방침).
+## Open Problems (active workstreams)
+
+Updated 2026-07-03 (post opex fix + 2026Q1 window extension + seed-implied shares + forward-window roll to 2026Q2). Offline 9Q baseline (DART cache, verified this date): rev MAPE 8.99% · EPS MAPE 10.39% · EPS bias −3.58% (inside ±5%) · MASE EPS 0.28 / Theil 0.28 · consensus skill +0.54, surprise 4/4 (N=4). 2026Q1 (supercycle: rev +60% QoQ, GP 79%) added with research-sourced drivers; its −16.3% EPS error is mostly below-OP block (−23.7% lever) → risk-band layer, per design.
+
+- **`valuation.fair_value_elasticity` 1.2 — still DRAFT.** Confirming needs BVT DCF fixed to a positive fair value + a measured (%FV)/(%EPS) on the host (`HANDOFF_valuation_bridge.md` #3). All other formerly-draft values were CONFIRMED 2026-07-03 under user delegation: opex split (LOO/Theil-Sen robustness in profile comment), tax anchors, risk_band mad/k=1.5, overlay entries, overlay_weight.
+- **Consensus vintage N=4 → expand further.** N=3→4 done 2026-07-03 by extending the backtest window to 2026Q1 (DART cache + yahoo vintage). Further N needs KR broker consensus (Naver Finance / FnGuide, README P1 — Naver is blocked in the Cowork sandbox; host workstream) or accumulating live vintages over time.
+- **Backtest↔forward coupling (structural).** `run_backtest` consumes the BASE scenario's `bit_growth_qoq[0]` / `other[0]` / margins / finance as methodology assumptions — future forward-assumption changes to those fields silently move the backtest. This roll kept them pinned (base dram 0.05 / nand 0.04 / other 0.01) to preserve the 9Q baseline; the clean fix is a separate `backtest_methodology` assumptions block (NOTICED BUT NOT TOUCHING).
+- **Git hygiene — committing (host).** 7+ sessions of work uncommitted on top of the initial commit. Commit per-session with `git add -p` on the host. Fixed 2026-07-02: stray literal-named `C:\temp\...cacert.pem` removed and its cause patched (`_ssl_setup` now returns early on POSIX); `.gitattributes` added (LF normalization — first commit after adding it may show a one-time renormalization diff); `*cacert.pem` gitignored.
+
+### Resolved (see HANDOFF_*.md for details)
+- ~~Forward `forecast_window` started 2026Q1 (already realized)~~ → rolled to 2026Q2 (2026-07-03, user-delegated): seed = 2026Q1 actual (rev 52,576bn / EPS 57,175, DART cache); 2026Q2~2027Q1 bear/base/bull vectors research-sourced (TrendForce 2Q26 conventional DRAM +58~63% / NAND +70~75% QoQ, 3Q26 double→single-digit deceleration; HBM3E 2026 +~20%, HBM4 ~70% premium ramp; supply tight through late 2027, 2027–28 oversupply risk → bear = correction scenario). Overlays refreshed: +2026Q3 consumer demand-destruction, +2027Q1 supply-inflection (as_of 2026-07-03); prior entries kept as ex-ante records. Verified: 9Q backtest bit-identical (full BacktestResult JSON diff), 98 tests green, dry-run OK, forward chain sanity-checked on real seed.
+- ~~Opex systematic bias −4.2%~~ → diagnosed (level: constant 15% vs realized 12.5%; shape: operating leverage, corr(rev, opex%) −0.77) and fixed via optional fixed+variable opex split (`opex = 990 bn + var% × revenue`, DRAFT values). Opex lever −4.2%→+0.3%; EPS bias −6.41%→−1.61%; MASE EPS 0.37→0.28. Legacy constant-% path bit-identical when the split is absent. `PLAN_opex_model.md` §5, `scripts/diagnose_opex.py`.
+- ~~Backtest not meaningful~~ → skill metrics vs naive RW (`engine/skill_metrics.py`): MASE/Theil both <1 for revenue & EPS; direction hit-rate shown to be no edge (model 87.5% = RW 87.5%). `HANDOFF_backtest_diag.md` session C.
+- ~~Output diverges from actuals & consensus~~ → attributed and fixed: gross-margin anchor off-by-one (`backtest.py`) + tax anchor 0.20→0.164; bias −10.55%→−6.41%. Consensus-side divergence was yfinance `.KS` data quality, gated via `quality_notes`. Remaining below-OP block is structural → risk band.
+- ~~Point-in-time overlays~~ → implemented: `Overlay` schema with lookahead guard, `engine/risk_band.py` (±band, annotation-only), `engine/valuation_bridge.py` consumer with 2-layer separation (EPS gap → fair-value delta; overlays → separate macro risk score). `HANDOFF_block_overlay.md`, `HANDOFF_valuation_bridge.md`.
 
 ## Workflow
-1. Claude Code: scaffold 단계 (현재 완료) — 디렉토리·핸드오프 docs·시그니처
-2. Codex CLI: 함수 본문·테스트 구현 — `AGENTS.md` 참고
-3. 사용자: 가정 수치 입력·시나리오 확률 조정·thesis 작성·결과 해석
-4. 동기화: `career/profile.md`·`portfolio-summary.md`·`facts-verified.md` 에 본 repo 항목 추가
+- One session = one workstream. Plan mode → save `PLAN_*.md` to repo → implement in a fresh focused session → self-verify with pytest / `--dry-run`.
+- Cross-session continuity via Cowork memory + repo `HANDOFF_*.md` (keep the latter for git / portfolio narrative).
+- Human: methodology, assumption values, scenario probabilities, result interpretation, thesis, interview answers.
+- AI (Codex CLI on host, or Cowork here): code, refactor, tests, Pydantic schemas, report/template boilerplate, dry-run verification.
+- Do not delete CLAUDE.md / AGENTS.md / `.codex/` meta dirs (2026-04-27 user policy).
 
-## Gotchas
-- ASCII path 필수 — Codex는 한글 경로(`C:\Users\김지원`)에서 silent fail
-- 임시 작업은 `C:/temp/earnings_forecast/` 격리 (다른 자소서 세션과 충돌 회피)
-- Yahoo `.KS` 티커는 일부 필드 sparse — `null` 처리 + "consensus unavailable" 경고
-- Plotly 단일 HTML 파일 < 5MB 유지 — Malgun.ttf 임베드 금지, 시스템 폰트만 사용
-- DART API rate limit: 분당 1000회 — `httpx` retry/backoff 필요
+## Engineering Rules (Cowork-relevant subset of global CLAUDE.md)
+- Think before coding: state assumptions; if multiple readings exist, surface them instead of picking silently. Plan mode for 3+ file or hard-to-reverse changes; execute single-file edits directly.
+- Simplicity first: minimum code for the asked problem; legibility over cleverness; no unrequested abstractions.
+- Surgical changes: every changed line traces to the request; don't refactor what isn't broken; log `NOTICED BUT NOT TOUCHING: file:line symptom` instead of fixing adjacent code.
+- Goal-driven: turn vague tasks into failing-test → pass; run pytest / dry-run after changes and fix failures before reporting done; measure baseline before structural change; on regression, stop and isolate before new work.
+- Security: never commit `.env`; never print API keys / secrets in chat.
+
+## Runtime Gotchas
+- Cowork sandbox mounts the repo at an ASCII path, so the old Codex 한글-path silent-fail does NOT apply here. (Still required when running Codex / Claude Code on the Windows host.)
+- Sandbox network is allowlisted: Yahoo direct returned 403 — live Yahoo / DART calls may fail in Cowork. Use `--dry-run` (fixtures) in Cowork; run live data pulls on the Windows host.
+- Sandbox resets per session — reinstall deps with `pip install -r requirements.txt --break-system-packages`.
+- Yahoo `.KS` tickers: some fields sparse → null-handle + "consensus unavailable" warning.
+- Keep single-file Plotly HTML < 5MB — no Malgun.ttf embed, system fonts only.
+- DART API rate limit 1000/min — httpx retry / backoff.
 
 ## Verification
-- `pytest -q` — 엔진별 유닛 테스트
-- `python cli.py --company sk_hynix --dry-run` — fixture로 외부 API 없이 리포트 생성
-- `python cli.py --company sk_hynix` — 실 데이터 호출, HTML 산출물 브라우저 점검
-- 8Q backtest MAPE: 매출 < 10%, EPS < 25% 미달 시 가정 재검토
-- 모델-컨센 gap이 모든 분기 < 5%면 "내 view 없음" 신호 → thesis 재작성
+- `pytest -q` — per-engine unit tests.
+- `python cli.py --company sk_hynix --dry-run` — offline report from fixtures.
+- `python cli.py --company sk_hynix` — live pull, inspect HTML (run on host if sandbox network is blocked).
+- 9Q backtest MAPE: revisit assumptions if revenue > 10% or EPS > 25%.
+- Model must beat naive-baseline error, not just hit direction. Gap < 5% every quarter = "no view" → rewrite thesis; gap large vs BOTH actual and consensus = bug → diagnose.
 
 ## Plan Reference
-원안: `C:\Users\김지원\.claude\plans\glittery-juggling-candle.md`
+Original: `C:\Users\김지원\.claude\plans\glittery-juggling-candle.md`
