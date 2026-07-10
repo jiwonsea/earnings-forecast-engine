@@ -128,6 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     from engine.backtest import run_backtest
     from engine.consensus_diff import compute_consensus_gap
     from engine.eps_bridge import project_eps
+    from engine.risk_band import build_eps_risk_band
+    from engine.valuation_bridge import sensitivity_to_dcf
     from engine.margin_model import project_margins
     from engine.scenario import aggregate_quarterly_to_annual, build_scenario_tree
     from engine.segment_revenue import build_margin_carryover, project_quarterly_revenue
@@ -252,6 +254,7 @@ def main(argv: list[str] | None = None) -> int:
             profile["shares"],
             profile["historical_drivers"],
             lookback_quarters,
+            consensus_history=consensus.history,
         )
     elif args.dry_run:
         logger.warning("Dry-run fixtures do not contain enough quarters for backtest; emitting empty backtest.")
@@ -267,10 +270,71 @@ def main(argv: list[str] | None = None) -> int:
     else:
         raise ValueError(f"need at least {lookback_quarters + 4} real quarters for backtest")
 
+    # Post-mortem EPS-error attribution (PLAN_skill_adoption.md EFE-1) — rendering
+    # layer only. Reuses the exact backtest projection; nothing is fed back into
+    # forecasts or the backtest, and BacktestResult itself is untouched.
+    attributions = None
+    if backtest.quarters:
+        from engine.attribution import attribute_eps_error
+        from engine.backtest import implied_basic_shares, iter_backtest_forecasts
+
+        try:
+            attributions = [
+                attribute_eps_error(
+                    target, forecast, implied_basic_shares(seed) or profile["shares"].weighted_avg_basic
+                )
+                for seed, target, forecast in iter_backtest_forecasts(
+                    backtest_history,
+                    base_assumptions,
+                    base_margin_assumptions,
+                    profile["anchor_margins"],
+                    base_finance_assumptions,
+                    profile["shares"],
+                    profile["historical_drivers"],
+                    lookback_quarters,
+                )
+            ]
+        except ValueError as exc:
+            logger.warning("EPS-error attribution skipped: %s", exc)
+            attributions = None
+
+    # Below-OP EPS risk band (separate layer over the point estimate; overlays are
+    # surfaced as annotations only — PLAN_tax_finance_overlay.md). None when the
+    # profile omits a risk_band block, leaving the report unchanged.
+    risk_band = None
+    risk_band_cfg = profile.get("risk_band")
+    if risk_band_cfg:
+        eps_points = [(q.quarter_label, q.eps_basic) for q in tree.weighted_quarterly]
+        risk_band = build_eps_risk_band(
+            eps_points,
+            half_width_pct=risk_band_cfg["half_width_pct"],
+            method=risk_band_cfg["method"],
+            k=risk_band_cfg["k"],
+            overlays=profile.get("overlays"),
+        )
+
+    # Valuation bridge: forward FY1 EPS gap vs consensus -> fair-value delta
+    # (elasticity), plus the macro overlay/risk layer (separate). Consensus is held
+    # only on genuine quality failures (quality_notes -> §①-B yfinance .KS guard),
+    # not on benign field absence (Codex follow-up #1).
+    valuation = None
+    valuation_cfg = profile.get("valuation")
+    if valuation_cfg and tree.weighted_annual and tree.weighted_annual[0].eps_basic is not None:
+        fy1 = tree.weighted_annual[0].fiscal_year
+        valuation = sensitivity_to_dcf(
+            tree,
+            consensus.eps_estimate_annual.get(fy1),
+            fair_value_elasticity=valuation_cfg.fair_value_elasticity,
+            eps_half_width_pct=(risk_band.half_width_pct if risk_band is not None else None),
+            overlays=profile.get("overlays"),
+            overlay_weight=valuation_cfg.overlay_weight,
+            consensus_reliable=(len(consensus.quality_notes) == 0),
+        )
+
     save_fan_chart_png(tree, fan_png_path)
     save_beat_miss_png(backtest, beat_miss_png_path)
-    render_html_report(html_path, tree, gaps, backtest, profile["raw"], args.inline_plotly)
-    render_md_report(md_path, tree, gaps, backtest, fan_png_path, beat_miss_png_path, consensus.notes)
+    render_html_report(html_path, tree, gaps, backtest, profile["raw"], args.inline_plotly, risk_band=risk_band, valuation=valuation, attributions=attributions)
+    render_md_report(md_path, tree, gaps, backtest, fan_png_path, beat_miss_png_path, consensus.notes, risk_band=risk_band, valuation=valuation)
     write_xlsx(xlsx_path, tree, backtest)
 
     logger.info("Wrote %s", html_path)

@@ -67,5 +67,19 @@ def write_xlsx(
     ws.append(["revenue_mape", backtest.revenue_mape])
     ws.append(["eps_mape", backtest.eps_mape])
     ws.append(["hit_ratio_direction", backtest.hit_ratio_direction])
+    if backtest.skill is not None:
+        s = backtest.skill
+        ws.append([])
+        ws.append(["# skill (naive baseline-relative; MASE/U2 < 1 = skill)"])
+        ws.append(["naive_rw_revenue_mape", s.naive_rw_revenue_mape])
+        ws.append(["naive_rw_eps_mape", s.naive_rw_eps_mape])
+        ws.append(["mase_revenue", s.mase_revenue])
+        ws.append(["mase_eps", s.mase_eps])
+        ws.append(["theil_u2_revenue", s.theil_u2_revenue])
+        ws.append(["theil_u2_eps", s.theil_u2_eps])
+        ws.append(["rw_hit_ratio_direction", s.rw_hit_ratio_direction])
+        ws.append(["skill_score_eps_vs_consensus", s.skill_score_eps_vs_consensus])
+        ws.append(["surprise_direction_accuracy", s.surprise_direction_accuracy])
+        ws.append(["n_surprise_scored", s.n_surprise_scored])
     wb.save(out_path)
     return out_path

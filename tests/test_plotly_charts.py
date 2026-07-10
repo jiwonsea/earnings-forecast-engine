@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from engine.scenario import aggregate_quarterly_to_annual, build_scenario_tree
-from output.plotly_charts import build_fan_chart
+from output.plotly_charts import build_attribution_waterfall, build_fan_chart
 from schemas.models import (
     CompanyMeta,
+    DriverAttribution,
     QuarterlyForecast,
     ScenarioCase,
     ScenarioProbabilities,
@@ -75,3 +78,54 @@ def test_fan_chart_keeps_scenario_legends_separate_and_fixes_yaxis_range() -> No
     assert "legendgroup" not in bull
     assert weighted["name"] == "Weighted"
     assert chart["layout"]["yaxis"]["range"][0] > 0
+
+
+def _attr(quarter_label: str, contribs: tuple[float, float, float, float, float]) -> DriverAttribution:
+    return DriverAttribution(
+        quarter_label=quarter_label,
+        eps_error_total=sum(contribs),
+        contrib_revenue=contribs[0],
+        contrib_gross_margin=contribs[1],
+        contrib_opex=contribs[2],
+        contrib_tax_finance=contribs[3],
+        contrib_shares=contribs[4],
+        model_basic_shares=700_000_000,
+        actual_implied_basic_shares=705_000_000.0,
+    )
+
+
+def test_attribution_waterfall_telescopes_per_quarter() -> None:
+    attributions = [
+        _attr("2025Q4", (0.04, -0.02, 0.01, -0.05, 0.003)),
+        _attr("2026Q1", (-0.10, 0.03, -0.01, -0.08, 0.002)),
+    ]
+    chart = build_attribution_waterfall(attributions)
+
+    (trace,) = chart["data"]
+    assert trace["type"] == "waterfall"
+    # 2 quarters × (5 levers + 1 total)
+    assert len(trace["y"]) == 12
+    # First lever of EACH quarter is "absolute" so the running sum resets per quarter.
+    assert trace["measure"] == ["absolute"] + ["relative"] * 4 + ["total"] + ["absolute"] + ["relative"] * 4 + ["total"]
+    # Lever bars telescope to the quarter's total EPS error (in %p).
+    for i, attr in enumerate(attributions):
+        levers = trace["y"][i * 6 : i * 6 + 5]
+        assert sum(levers) == pytest.approx(attr.eps_error_total * 100)
+    # Multicategory x: quarter group + lever label.
+    x_quarter, x_lever = trace["x"]
+    assert x_quarter[:6] == ["2025Q4"] * 6
+    assert x_lever[0] != x_lever[1]
+
+
+def test_attribution_waterfall_is_labeled_post_mortem_not_forecast() -> None:
+    chart = build_attribution_waterfall([_attr("2025Q4", (0.04, -0.02, 0.01, -0.05, 0.003))])
+
+    assert "사후 귀인" in chart["layout"]["title"]
+    assert "post-mortem attribution" in chart["layout"]["title"]
+    annotation_text = " ".join(a["text"] for a in chart["layout"]["annotations"])
+    assert "예측 신호 아님" in annotation_text
+
+
+def test_attribution_waterfall_rejects_empty_input() -> None:
+    with pytest.raises(ValueError):
+        build_attribution_waterfall([])
