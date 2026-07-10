@@ -26,6 +26,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from schemas.generic import GenericProfile  # noqa: E402
 from engine.generic_forecast import run_generic_forecast  # noqa: E402
+from engine.segment_revenue import _next_quarter_label  # noqa: E402
 from engine.generic_signal import (  # noqa: E402
     build_signal_block,
     fetch_consensus_fy1_eps,
@@ -60,6 +61,22 @@ def backtest_generic(profile: GenericProfile) -> dict:
     actuals = sorted(profile.actuals, key=lambda a: (int(a.quarter_label[:4]), int(a.quarter_label[-1])))
     if len(actuals) < 2:
         return {"n": len(actuals), "note": "actuals < 2 — backtest skipped"}
+
+    # NVDA-1b contiguity guard: a 1-step backtest is only meaningful over
+    # consecutive quarters. Historical NVDA/TSLA profiles had NO Q4 rows (and
+    # mislabelled years), so sorted-adjacent rows silently joined Q3→Q1 and
+    # corrupted the RW baseline, seasonal slots and every MAPE/MASE metric.
+    # Refuse loudly instead of scoring a broken join.
+    labels = [a.quarter_label for a in actuals]
+    for prev_label, cur_label in zip(labels, labels[1:]):
+        if _next_quarter_label(prev_label) != cur_label:
+            return {
+                "n": 0,
+                "note": (
+                    f"actuals 비연속({prev_label} → {cur_label}) — 1-step 백테스트 거부. "
+                    "Q4 복원/라벨 수정 후 재실행 (NVDA-1b contiguity guard)"
+                ),
+            }
 
     n = profile.window.n_quarters
     g = profile.base.growth(n)

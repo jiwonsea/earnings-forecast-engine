@@ -22,13 +22,14 @@
 
 ## 오프라인 백테스트 (1-step, seasonally-aware)
 
-- N=19 · 매출 MAPE 14.2% (naive RW 18.5%) · 매출 bias -7.5%
-- EPS MAPE 46.9% (naive RW 67.4%) · EPS bias -45.8%
+- N=26 · 매출 MAPE 9.9% (naive RW 13.9%) · 매출 bias -4.1%
+- EPS MAPE 95.0% (naive RW 30.6%) · EPS bias +81.5%
 
 ## 데이터 출처 / 주의
 
-- FY2026(2026-01 종료) 실적: 매출 $215.9B, 순이익 ~$120B, GAAP 희석 EPS $4.90 (NVIDIA newsroom 2026-02-25).
-- 분기 actuals는 보고된 연간 총액과 DC 세그먼트 프린트에서 역산한 근사치 — 공식 분기 GAAP 아님. 백테스트 MAPE는 참고용.
-- 라벨은 캘린더 분기 근사(NVDA 회계연도는 1월 종료라 실제 분기와 ~1개월 오프셋).
+- actuals는 EDGAR companyfacts as-filed 원본 공시 기준 공식 분기 GAAP (10-Q; Q4는 동일 회계연도 10-K 연간 − Q3 10-Q 9M 차감 복원). NVDA-1 (2026-07-11).
+- 과거 EPS는 저장하지 않고 로드 시 파생: net_profit ÷ (as-filed 분기별 희석주식수 × split_history 조정, 현재 기준). as-filed EPS·accession은 source에 보존.
+- 라벨 계약: 1월 결산 → fiscal FY(N)Qq = model (N-1)Qq (캘린더 분기 근사, ~1개월 오프셋). 1월 종료 분기는 전년 Q4.
+- FY2026(2026-01 종료) 검증: 분기 매출 합 = $215,938M, 순이익 합 = $120,067M (10-K 0001045810-26-000021과 일치).
 
 _시나리오 확률: bear 25% / base 50% / bull 25%_

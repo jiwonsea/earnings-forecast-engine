@@ -24,10 +24,24 @@ Design rules (mirror the memory path):
 - Engine functions are pure; these models are their IO contract.
 - Reuses ``QuarterlyForecast`` / ``AnnualForecast`` / ``ScenarioTree`` from
   schemas.models so downstream (scenario weighting, skill metrics) is shared.
+
+Historical-EPS normalization (NVDA-1c, REVIEW_nvidia_codex.md #1/#6):
+- EDGAR companyfacts EPS facts are NEVER selected as canonical data — the same
+  period carries both the as-filed value and later filings' retroactively
+  split-adjusted comparatives, and old quarters may have no current-basis
+  comparative at all (naive selection created the 0.62B → 2.5B → 24.5B
+  mixed-basis seams in the original NVDA profile).
+- Instead each actual stores the AS-FILED per-quarter diluted weighted-average
+  share count (+ period_end); ``split_history`` brings it to the CURRENT basis
+  at load and ``eps_diluted`` is DERIVED as net_profit x unit_scale / adjusted
+  shares. Real dilution/buyback variation is preserved (never recompute history
+  with the fixed forward share count). As-filed EPS + accession live on in the
+  row's ``source`` string as provenance.
 """
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -90,6 +104,25 @@ class GenericScenarioAssumptions(BaseModel):
         return self._as_vector(self.net_interest_pct_of_revenue, n)
 
 
+class SplitEvent(BaseModel):
+    """One stock split: shares are multiplied by ``ratio`` on ``date``.
+
+    Explicit-assumptions convention (Codex #1): the split history lives in the
+    profile YAML, auditable, instead of pre-adjusted magic numbers. A quarter
+    whose ``period_end`` predates ``date`` gets its as-filed share count
+    multiplied by ``ratio`` to reach today's basis. (Facts as-filed AFTER a
+    split are already on the post-split basis — SEC comparatives are restated
+    retroactively in the filing itself — so period_end, not filing date, is the
+    right key as long as no split falls between a period end and its original
+    filing; true for every NVDA/TSLA split covered here.)
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+    ratio: float = Field(..., gt=0.0)
+
+
 class GenericSeedQuarter(BaseModel):
     """The last reported quarter — seeds revenue compounding and EPS scale."""
 
@@ -102,7 +135,15 @@ class GenericSeedQuarter(BaseModel):
 
 
 class GenericActualQuarter(BaseModel):
-    """A reported quarter used for the offline backtest (revenue/EPS MAPE)."""
+    """A reported quarter used for the offline backtest (revenue/EPS MAPE).
+
+    Preferred form (NVDA-1c): supply ``net_profit`` + ``diluted_shares``
+    (AS-FILED weighted-average diluted, from the quarter's own accession) +
+    ``period_end``; ``eps_diluted`` is then DERIVED at load on the current
+    share basis via the profile's ``split_history``. A directly-stored
+    ``eps_diluted`` is only honoured when ``diluted_shares`` is absent
+    (legacy profiles).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -110,6 +151,8 @@ class GenericActualQuarter(BaseModel):
     revenue_total: float
     net_profit: float | None = None
     eps_diluted: float | None = None
+    period_end: date | None = None
+    diluted_shares: float | None = Field(None, gt=0.0)
     source: str = ""
 
 
@@ -138,6 +181,7 @@ class GenericProfile(BaseModel):
     seed: GenericSeedQuarter
     window: GenericForecastWindow
     actuals: list[GenericActualQuarter] = Field(default_factory=list)
+    split_history: list[SplitEvent] = Field(default_factory=list)
 
     bear: GenericScenarioAssumptions
     base: GenericScenarioAssumptions
@@ -149,9 +193,42 @@ class GenericProfile(BaseModel):
     def unit_scale(self) -> float:
         return UNIT_SCALE[self.reporting_unit]
 
+    def split_factor(self, period_end: date) -> float:
+        """Multiplier taking an as-filed share count at ``period_end`` to today's basis."""
+        factor = 1.0
+        for event in self.split_history:
+            if event.date > period_end:
+                factor *= event.ratio
+        return factor
+
     @model_validator(mode="after")
     def _probabilities_sum_to_one(self) -> "GenericProfile":
         total = self.bear.probability + self.base.probability + self.bull.probability
         if abs(total - 1.0) > 1e-6:
             raise ValueError(f"scenario probabilities must sum to 1.0 (got {total})")
+        return self
+
+    @model_validator(mode="after")
+    def _derive_actual_eps(self) -> "GenericProfile":
+        """NVDA-1c: derive historical EPS from NI + split-adjusted diluted shares.
+
+        Whenever an actual carries ``diluted_shares`` the stored ``eps_diluted``
+        (if any) is IGNORED and replaced by the derived, current-basis value —
+        selecting EPS facts directly is exactly how the mixed-basis history was
+        assembled. The fixed forward ``weighted_avg_diluted`` is deliberately
+        NOT used here: per-quarter shares preserve real dilution/buyback.
+        """
+        for actual in self.actuals:
+            if actual.diluted_shares is None:
+                continue
+            if actual.period_end is None:
+                raise ValueError(
+                    f"{actual.quarter_label}: diluted_shares requires period_end for split adjustment"
+                )
+            if actual.net_profit is None:
+                raise ValueError(
+                    f"{actual.quarter_label}: diluted_shares requires net_profit to derive EPS"
+                )
+            adjusted_shares = actual.diluted_shares * self.split_factor(actual.period_end)
+            actual.eps_diluted = actual.net_profit * self.unit_scale / adjusted_shares
         return self
