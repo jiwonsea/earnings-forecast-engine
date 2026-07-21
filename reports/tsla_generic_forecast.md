@@ -22,8 +22,12 @@
 
 ## 오프라인 백테스트 (1-step, seasonally-aware)
 
-- N=26 · 매출 MAPE 10.8% (naive RW 13.2%) · 매출 bias +0.0%
-- EPS MAPE 161.6% (naive RW 101.4%) · EPS bias +114.2%
+- **Post-break (headline)** · N=12 (EPS 12) · 매출 MAPE 11.7% / bias +5.5% · EPS MAPE 71.9% / bias +43.0%
+  - RW MAPE 매출 12.4% / EPS 123.0% · MASE 매출 0.949 / EPS 0.665 · Theil U2 매출 0.935 / EPS 0.712 · consensus N=0
+- **Full window** · N=26 (EPS 26) · 매출 MAPE 10.8% / bias +0.0% · EPS MAPE 196.4% / bias +150.5%
+  - RW MAPE 매출 13.2% / EPS 101.4% · MASE 매출 0.846 / EPS 0.991 · Theil U2 매출 0.874 / EPS 0.829 · consensus N=0
+- **Pre-break** · N=14 (EPS 14) · 매출 MAPE 10.0% / bias -4.6% · EPS MAPE 303.1% / bias +242.6%
+  - RW MAPE 매출 13.8% / EPS 82.9% · MASE 매출 0.708 / EPS 1.830 · Theil U2 매출 0.737 / EPS 1.827 · consensus N=0
 
 ## 데이터 출처 / 주의
 

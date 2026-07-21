@@ -132,36 +132,58 @@ def build_signal_block(
     Item 1 (skill-gate reliability): ``skill_pass`` now requires BOTH a naive-
     baseline win AND n >= MIN_SKILL_N EPS-scored quarters. On a short window skill
     is UNKNOWN, so the block abstains (stance neutral) instead of assuming the win
-    is real. The skill sub-block surfaces ``n`` plus two windows — the full
-    expanding window and the trailing-8Q window — and a ``regime_shift`` flag when
-    they disagree on whether the model beats naive (a cycle-turn tell).
+    is real. For regime-aware backtests the primary and trailing-8Q windows both
+    start inside post-break; the full window remains visible for disagreement
+    checks. Profiles without regime windows retain full/trailing behavior.
     """
     rows = backtest.get("rows") or []
+    post_window = (backtest.get("windows") or {}).get("post_break")
+    primary_rows = post_window.get("rows", []) if post_window else rows
+    primary_name = "post_break" if post_window else "full"
     full = _window_skill(rows, window=None)
-    trailing = _window_skill(rows, window=TRAILING_WINDOW)
+    primary = _window_skill(primary_rows, window=None)
+    trailing = _window_skill(primary_rows, window=TRAILING_WINDOW)
 
-    # Full-window scalars: prefer row-derived; fall back to the top-level scalars
-    # (back-compat for callers that pass eps_mape/naive without per-row rw_eps).
-    eps_mape = full["eps_mape"] if full["eps_mape"] is not None else backtest.get("eps_mape")
+    if post_window:
+        fallback_eps_mape = post_window.get("eps_mape")
+        fallback_naive_ratio = (post_window.get("skill") or {}).get("naive_rw_eps_mape")
+        fallback_naive_mape = (
+            fallback_naive_ratio * 100 if fallback_naive_ratio is not None else None
+        )
+        fallback_n = int(post_window.get("n_eps") or 0)
+    else:
+        fallback_eps_mape = backtest.get("eps_mape")
+        fallback_naive_mape = backtest.get("naive_rw_eps_mape")
+        fallback_n = int(backtest.get("n") or 0)
+
+    # Primary-window scalars: prefer row-derived; fall back to the selected
+    # window summary (or legacy top-level scalars when no regime window exists).
+    eps_mape = primary["eps_mape"] if primary["eps_mape"] is not None else fallback_eps_mape
     naive = (
-        full["naive_rw_eps_mape"]
-        if full["naive_rw_eps_mape"] is not None
-        else backtest.get("naive_rw_eps_mape")
+        primary["naive_rw_eps_mape"]
+        if primary["naive_rw_eps_mape"] is not None
+        else fallback_naive_mape
     )
-    # n: EPS-scored quarters. Prefer the full-window row count; else the backtest's
-    # own n (revenue-scored) as an upper bound the caller declared.
-    n = full["n"] or int(backtest.get("n") or 0)
+    # n: EPS-scored quarters. Prefer the primary row count; otherwise use the
+    # selected summary's declared count for legacy callers without usable rows.
+    n = primary["n"] or fallback_n
 
-    beats_naive_full = eps_mape is not None and naive is not None and eps_mape < naive
+    beats_naive_primary = eps_mape is not None and naive is not None and eps_mape < naive
     beats_naive_trailing = trailing["beats_naive"]
-    has_row_skill = bool(rows)
+    has_row_skill = bool(primary_rows)
     enough = n >= MIN_SKILL_N
     trailing_ok = beats_naive_trailing is True if has_row_skill else True
-    skill_pass = bool(enough and beats_naive_full and trailing_ok)
+    skill_pass = bool(enough and beats_naive_primary and trailing_ok)
     regime_shift = (
         trailing["beats_naive"] is not None
+        and primary["beats_naive"] is not None
+        and trailing["beats_naive"] != primary["beats_naive"]
+    )
+    full_vs_primary_disagreement = (
+        post_window is not None
         and full["beats_naive"] is not None
-        and trailing["beats_naive"] != full["beats_naive"]
+        and primary["beats_naive"] is not None
+        and full["beats_naive"] != primary["beats_naive"]
     )
 
     q_eps = [q.get("eps_diluted") for q in weighted_quarterly]
@@ -188,14 +210,17 @@ def build_signal_block(
                     if not enough
                     else (
                         "trailing_8q_does_not_beat_naive"
-                        if has_row_skill and beats_naive_full and beats_naive_trailing is False
+                        if has_row_skill and beats_naive_primary and beats_naive_trailing is False
                         else "does_not_beat_naive"
                     )
                 )
             ),
+            "primary_window_name": primary_name,
+            "primary_window": primary,
             "full_window": full,
             "trailing_8q": trailing,
             "regime_shift": regime_shift,
+            "full_vs_primary_disagreement": full_vs_primary_disagreement,
         },
         "trajectory": {
             "direction": trajectory,

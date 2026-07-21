@@ -24,13 +24,14 @@ REPORTS_DIR = REPO_ROOT / "reports"
 
 sys.path.insert(0, str(REPO_ROOT))
 
-from schemas.generic import GenericProfile  # noqa: E402
 from engine.generic_forecast import run_generic_forecast  # noqa: E402
-from engine.segment_revenue import _next_quarter_label  # noqa: E402
 from engine.generic_signal import (  # noqa: E402
     build_signal_block,
     fetch_consensus_fy1_eps,
 )
+from engine.segment_revenue import _next_quarter_label  # noqa: E402
+from engine.skill_metrics import SkillRow, compute_skill  # noqa: E402
+from schemas.generic import GenericProfile  # noqa: E402
 
 
 def load_generic_profile(path: Path) -> GenericProfile:
@@ -49,12 +50,50 @@ def _bias(pairs: list[tuple[float, float]]) -> float | None:
     return 100.0 * sum(errs) / len(errs) if errs else None
 
 
+def _skill_rows(rows: list[dict]) -> list[SkillRow]:
+    """Map generic backtest rows onto the shared ratio-based skill contract."""
+    return [
+        SkillRow(
+            quarter_label=row["quarter"],
+            actual_revenue=row["actual_rev"],
+            model_revenue=row["model_rev"],
+            rw_revenue=row["rw_rev"],
+            actual_eps=row.get("actual_eps"),
+            model_eps=row.get("model_eps"),
+            rw_eps=row.get("rw_eps"),
+        )
+        for row in rows
+    ]
+
+
+def _summarize_window(rows: list[dict]) -> dict:
+    """Aggregate one row window; MAPE/bias are percent, skill values are ratios."""
+    revenue_pairs = [(row["model_rev"], row["actual_rev"]) for row in rows]
+    eps_pairs = [
+        (row["model_eps"], row["actual_eps"])
+        for row in rows
+        if row.get("actual_eps") is not None and row.get("model_eps") is not None
+    ]
+    skill = compute_skill(_skill_rows(rows), include_trailing=False)
+    return {
+        "n": len(revenue_pairs),
+        "n_eps": skill.n_eps,
+        "revenue_mape": _mape(revenue_pairs),
+        "revenue_bias": _bias(revenue_pairs),
+        "eps_mape": _mape(eps_pairs),
+        "eps_bias": _bias(eps_pairs),
+        "skill": skill.model_dump(),
+        "rows": rows,
+    }
+
+
 def backtest_generic(profile: GenericProfile) -> dict:
     """One-step-ahead, seasonally-aware offline backtest over the actuals block.
 
     Predict each quarter's revenue as prior-actual x (1 + base growth[slot]);
-    EPS via base op_margin/tax/net_interest at the same slot and the fixed
-    diluted share count. ``slot`` is the target quarter's calendar position
+    EPS via base op_margin/tax/net_interest at the same slot and the prior
+    quarter's split-adjusted diluted share count (fixed-forward fallback for
+    legacy rows). ``slot`` is the target quarter's calendar position
     (Q1->0 ... Q4->3) so a seasonal driver vector is matched to the right step
     rather than always using growth[0]. Compared against a naive random walk.
     """
@@ -84,7 +123,6 @@ def backtest_generic(profile: GenericProfile) -> dict:
     t = profile.base.tax(n)
     ni = profile.base.net_interest(n)
     scale = profile.unit_scale
-    shares = profile.weighted_avg_diluted
 
     def _slot(label: str) -> int:
         return min(int(label[-1]) - 1, n - 1)
@@ -100,7 +138,13 @@ def backtest_generic(profile: GenericProfile) -> dict:
         op = model_rev * m[s]
         pretax = op + ni[s] * model_rev
         net = pretax * (1.0 - t[s])
-        model_eps = net * scale / shares
+        if prev.diluted_shares is not None:
+            model_eps_shares = prev.diluted_shares * profile.split_factor(prev.period_end)
+            share_convention = "prior_quarter_split_adjusted"
+        else:
+            model_eps_shares = profile.weighted_avg_diluted
+            share_convention = "fixed_forward_fallback"
+        model_eps = net * scale / model_eps_shares
         rev_pairs.append((model_rev, cur.revenue_total))
         rw_rev_pairs.append((prev.revenue_total, cur.revenue_total))
         # rw_rev/rw_eps = random-walk (persistence) baseline = prior-quarter actual.
@@ -111,6 +155,8 @@ def backtest_generic(profile: GenericProfile) -> dict:
             "actual_rev": cur.revenue_total,
             "model_rev": model_rev,
             "rw_rev": prev.revenue_total,
+            "model_eps_share_count": model_eps_shares,
+            "model_eps_share_convention": share_convention,
         }
         if cur.eps_diluted is not None and prev.eps_diluted is not None:
             eps_pairs.append((model_eps, cur.eps_diluted))
@@ -120,7 +166,7 @@ def backtest_generic(profile: GenericProfile) -> dict:
             row["rw_eps"] = prev.eps_diluted
         rows.append(row)
 
-    return {
+    result = {
         "n": len(rev_pairs),
         "revenue_mape": _mape(rev_pairs),
         "revenue_bias": _bias(rev_pairs),
@@ -129,7 +175,44 @@ def backtest_generic(profile: GenericProfile) -> dict:
         "naive_rw_revenue_mape": _mape(rw_rev_pairs),
         "naive_rw_eps_mape": _mape(rw_eps_pairs),
         "rows": rows,
+        "skill": compute_skill(_skill_rows(rows)).model_dump(),
     }
+    if profile.regime_break_quarter is not None:
+        pre_rows = [row for row in rows if row["quarter"] < profile.regime_break_quarter]
+        post_rows = [row for row in rows if row["quarter"] >= profile.regime_break_quarter]
+        result["windows"] = {
+            "full": _summarize_window(rows),
+            "pre_break": _summarize_window(pre_rows),
+            "post_break": _summarize_window(post_rows),
+        }
+    return result
+
+
+def _render_skill(skill: dict) -> str:
+    """Render shared skill ratios; this is the sole ratio-to-percent conversion site."""
+    def ratio(value: float | None) -> str:
+        return "N/A" if value is None else f"{value:.3f}"
+
+    rw_rev = skill.get("naive_rw_revenue_mape")
+    rw_eps = skill.get("naive_rw_eps_mape")
+    rw_rev_text = "N/A" if rw_rev is None else f"{rw_rev * 100:.1f}%"
+    rw_eps_text = "N/A" if rw_eps is None else f"{rw_eps * 100:.1f}%"
+    return (
+        f"RW MAPE 매출 {rw_rev_text} / EPS {rw_eps_text} · "
+        f"MASE 매출 {ratio(skill.get('mase_revenue'))} / EPS {ratio(skill.get('mase_eps'))} · "
+        f"Theil U2 매출 {ratio(skill.get('theil_u2_revenue'))} / EPS {ratio(skill.get('theil_u2_eps'))} · "
+        f"consensus N={skill.get('n_surprise_scored', 0)}"
+    )
+
+
+def _render_window(label: str, window: dict) -> list[str]:
+    """Render one backtest window with percent errors and ratio-based skill."""
+    return [
+        f"- **{label}** · N={window['n']} (EPS {window['n_eps']}) · "
+        f"매출 MAPE {window['revenue_mape']:.1f}% / bias {window['revenue_bias']:+.1f}% · "
+        f"EPS MAPE {window['eps_mape']:.1f}% / bias {window['eps_bias']:+.1f}%",
+        f"  - {_render_skill(window['skill'])}",
+    ]
 
 
 def render_markdown(profile: GenericProfile, fc, bt: dict) -> str:
@@ -163,6 +246,11 @@ def render_markdown(profile: GenericProfile, fc, bt: dict) -> str:
     lines += ["", "## 오프라인 백테스트 (1-step, seasonally-aware)", ""]
     if bt.get("revenue_mape") is None:
         lines.append(f"- {bt.get('note', 'N/A')}")
+    elif bt.get("windows"):
+        windows = bt["windows"]
+        lines += _render_window("Post-break (headline)", windows["post_break"])
+        lines += _render_window("Full window", windows["full"])
+        lines += _render_window("Pre-break", windows["pre_break"])
     else:
         lines.append(
             f"- N={bt['n']} · 매출 MAPE {bt['revenue_mape']:.1f}% (naive RW {bt['naive_rw_revenue_mape']:.1f}%) · 매출 bias {bt['revenue_bias']:+.1f}%"
@@ -171,6 +259,7 @@ def render_markdown(profile: GenericProfile, fc, bt: dict) -> str:
             lines.append(
                 f"- EPS MAPE {bt['eps_mape']:.1f}% (naive RW {bt['naive_rw_eps_mape']:.1f}%) · EPS bias {bt['eps_bias']:+.1f}%"
             )
+        lines.append(f"- {_render_skill(bt['skill'])}")
     if p.notes:
         lines += ["", "## 데이터 출처 / 주의", ""]
         lines += [f"- {n}" for n in p.notes]
@@ -201,8 +290,10 @@ def main(argv: list[str] | None = None) -> int:
     w_fy = fc.weighted_annual
     print(f"[{profile.name}] 확률가중 FY EPS:", ", ".join(f"{a.fiscal_year}={a.eps_basic:,.2f}" for a in w_fy))
     if bt.get("revenue_mape") is not None:
-        eps_txt = f" · EPS MAPE {bt['eps_mape']:.1f}%" if bt.get("eps_mape") is not None else ""
-        print(f"  백테스트 N={bt['n']} · 매출 MAPE {bt['revenue_mape']:.1f}% (RW {bt['naive_rw_revenue_mape']:.1f}%){eps_txt}")
+        headline = bt.get("windows", {}).get("post_break", bt)
+        eps_txt = f" · EPS MAPE {headline['eps_mape']:.1f}%" if headline.get("eps_mape") is not None else ""
+        label = "post-break " if bt.get("windows") else ""
+        print(f"  백테스트 {label}N={headline['n']} · 매출 MAPE {headline['revenue_mape']:.1f}%{eps_txt}")
     else:
         print(f"  백테스트: {bt.get('note')}")
     print(f"  리포트: {md_path}")

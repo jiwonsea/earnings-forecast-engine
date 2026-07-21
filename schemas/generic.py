@@ -182,6 +182,7 @@ class GenericProfile(BaseModel):
     window: GenericForecastWindow
     actuals: list[GenericActualQuarter] = Field(default_factory=list)
     split_history: list[SplitEvent] = Field(default_factory=list)
+    regime_break_quarter: str | None = Field(None, pattern=r"^\d{4}Q[1-4]$")
 
     bear: GenericScenarioAssumptions
     base: GenericScenarioAssumptions

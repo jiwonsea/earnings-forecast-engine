@@ -26,6 +26,10 @@ fiscal_year_end_month: 12
 # 10-Q 0001628280-26-026673). Historical actuals use per-quarter shares.
 weighted_avg_diluted: 3538000000
 
+# AI-supercycle comparison break; post-break headline starts at 2023Q2 per
+# REVIEW_nvda2_codex.md §1.2 row-partition evidence.
+regime_break_quarter: "2023Q2"
+
 # Stock splits (explicit, auditable — applied to as-filed diluted_shares at
 # load to reach the current basis; period_end < date -> multiply by ratio).
 split_history:
