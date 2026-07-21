@@ -101,4 +101,12 @@ Codex checks:
    window (it is the CURRENT share count, so forward EPS is fine; only the
    backtest comparison needed the historical basis fix). Confirm.
 
-## 5. Agree
+## 5. Agreed workflow
+
+1. This doc → Codex review on host (repo is committed through 13a7e47; working
+   tree clean, 146 tests green).
+2. If the split-basis finding survives review → NVDA-1 implementation session
+   on host (network needed for EDGAR); then NVDA-2 (sandbox-able once cached),
+   then decide NVDA-3.
+3. Every session ends: `pytest -q` full suite + memory-path 9Q sha256 match +
+   commit per-session (git hygiene now clean — keep it that way).

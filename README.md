@@ -95,4 +95,29 @@ flowchart LR
 
 > 직전 README의 단독 "Hit ratio 87.5%"는 **제거**했다 — 구조적 상승 사이클에서 "항상 up"과 구별이 안 돼 skill 신호가 아니다 (실측: model 87.5% **= RW 87.5%**, 방향은 edge가 아님). 대신 magnitude 기준 MASE/Theil U2로 판정한다. **skill 주장은 MASE<1 *그리고* Theil U2<1일 때만**; 매출·EPS 모두 충족 → **naive 대비 우위 확인**. EPS 계통 bias는 tax-anchor 재캘리브레이션(0.20→0.164, −10.6%→−6.4%)과 opex operating-leverage 수정(상수 15% → 고정 990bn + 변동 7.3%, `PLAN_opex_model.md`; −6.4%→−1.6%)으로 목표(±5%)에 진입했고, 슈퍼사이클 분기 2026Q1을 윈도에 추가한 9Q 기준 **−3.6%**를 유지한다 (EPS 브리지는 분기별 seed-implied 주식수 사용 — 고정 주식수 드리프트 제거) (2026Q1 EPS 오차 −16.3%는 대부분 below-OP block −23.7%). 잔여 변동성의 최대 축은 below-OP block(FX 평가손익·일회성 등 구조적 예측불가 항목)으로, 점추정 미세조정 대신 **별도 리스크 밴드(±22.8% draft) + date-tagged overlay**로 표현한다 (`HANDOFF_block_overlay.md`). 9Q는 작은 표본이라 점추정 과대해석은 금물. 전체 표는 매 실행마다 `reports/sk_hynix_YYYYMMDD.{md,html,xlsx}`의 Skill 섹션에 갱신된다 (`profiles/sk_hynix.yaml` 가정 기반, 사용자 확정 대상).
 >
-> ¹ **참고용 (표본 부족, N=4).** `consensus_loader`의 `earnings_history` 필드명 버그(`period`↔`quarter`) 수정 + 백테스트 윈도 2026Q1 연장으로 vintage 컨센 4분기(2025Q2–2026Q1)가 측정된다. 측정 결과 model이 vintage 컨센을 EPS level(skill_score +0.54 = 1 − model_MAE/cons_MAE)·surprise 방향(4/4, 2026Q1 +41.6% 서프라이즈 분기 포함) 모두 이겼으나, **N=4는 여전히 통계적으로 무의미 수준이라 점추정 과대해석은 금물** — 우위 입증이 아니라 "지표를 켠" 단계다. N 확대(과거 �
+> ¹ **참고용 (표본 부족, N=4).** `consensus_loader`의 `earnings_history` 필드명 버그(`period`↔`quarter`) 수정 + 백테스트 윈도 2026Q1 연장으로 vintage 컨센 4분기(2025Q2–2026Q1)가 측정된다. 측정 결과 model이 vintage 컨센을 EPS level(skill_score +0.54 = 1 − model_MAE/cons_MAE)·surprise 방향(4/4, 2026Q1 +41.6% 서프라이즈 분기 포함) 모두 이겼으나, **N=4는 여전히 통계적으로 무의미 수준이라 점추정 과대해석은 금물** — 우위 입증이 아니라 "지표를 켠" 단계다. N 확대(과거 시점 vintage 누적 또는 KR broker 컨센)는 후속. 진단·구현 경위는 `HANDOFF_backtest_diag.md` 세션 C / `PLAN_consensus_wiring.md` 참조.
+
+## Roadmap
+
+- **P1**: 삼성전자 (`005930.KS`), 도쿄일렉트론 (`8035.T`) 확장
+- **P1**: 한국 broker 컨센서스 통합 (네이버 금융·FnGuide)
+- **P2**: BVT와 양방향 어댑터 — forecast → DCF fair value auto-update
+- **P2**: Streamlit dashboard
+
+## AI Collaboration
+
+본 프로젝트는 사람(분석가)과 두 AI 도구(Claude Code · Codex CLI)의 협업으로 구축됩니다.
+
+- **사람 (본인)**: 전략·방법론 의사결정, **가정 수치 검토·확정·소유**, 결과 해석, thesis, 면접 방어.
+- **Claude Code**: 시장 데이터 기반 가정 **초안**(출처 명시), **검증·QA**(silent failure 적발), 방법론 설계·핸드오프, 백테스트 비순환 규율.
+- **Codex CLI**: 함수 본문 구현·테스트·리팩토링.
+
+가정은 AI가 출처 기반으로 **초안**하되 분석가가 검토·확정·소유합니다. 상세·정직성 기준: [docs/ai_collaboration.md](docs/ai_collaboration.md).
+
+## Scope (정직성)
+
+매출/마진 **모델은 메모리 반도체에 특화**(DRAM/HBM/NAND · bit×ASP · cost-per-bit). 파이프라인·시나리오·백테스트·방법론 규율은 **재사용 가능** — 메모리 동종(삼성·Micron)은 새 profile로 거의 그대로, 비메모리는 매출/마진 엔진 재설계 필요. "범용 실적 엔진"이 아니라 **메모리 forward 모델 + 재사용 가능한 방법론·배관**입니다.
+
+## License
+
+MIT

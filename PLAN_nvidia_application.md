@@ -122,4 +122,57 @@ Codex-ordered sub-stages; **backtest numbers are invalid until all three pass**:
   bias is split-artifact + label-artifact mixed, so measure, don't presume
   (Codex: single-digit-bias expectation was not warranted).
 
-### NVDA-2: Metrics parity (sandbo
+### NVDA-2: Metrics parity (sandbox-able once NVDA-1 data is cached)
+- Reuse `engine/skill_metrics.py` (Codex-confirmed: `backtest_generic` rows
+  carry rw_rev/rw_eps and convert directly; no memory-path import cycle).
+  Keep the legacy MAPE/bias fields for compatibility and ADD the skill block —
+  minimal change. Only after NVDA-1b's contiguous labels land.
+- Consensus gap: do NOT reuse `to_consensus_record` as-is (Codex): its 0q/+1q →
+  calendar-quarter join silently mis-joins a Jan-ending fiscal year, its
+  quality messages are `.KS`-specific, and the implied-net-margin >60% check
+  would false-positive on NVDA's genuine margins. Reuse the raw Yahoo parsing;
+  add a separate, tested normalization keyed to the profile's fiscal calendar
+  (period-end ↔ fiscal label ↔ model label). Keep the `quality_notes` contract
+  but make thresholds issuer-neutral (company margin range + unit coherence,
+  not market suffix).
+- Attribution: separate 4-lever generic function (revenue / OP margin /
+  OP→NI conversion / shares) matching what the generic model actually
+  predicts — do NOT parametrize the 5-lever memory version by lever count
+  (Codex). Deprioritized within NVDA-2; waterfall rendering reused as-is.
+
+### NVDA-3: Reporting parity (sandbox)
+- Generic branch in `output/html_builder.py` + `plotly_charts.py`: fan,
+  scenario compare, risk band, attribution waterfall, consensus gap table.
+  Keep MD as the fallback. Same "사후 귀인 — 예측 신호 아님" labeling contract.
+
+Priority: NVDA-1 ≫ NVDA-2 > NVDA-3 (Codex-endorsed). NVDA-1 is prerequisite —
+every metric computed before it is polluted by the basis seams, the missing
+Q4s, and circularity. NVDA-3 explicitly deferred until the data/metrics
+contract is stable: a polished report would visually reinforce wrong numbers.
+
+## 6. Risks
+- **Comparative-coverage gap (Codex):** companyfacts' "latest fact per period"
+  is NOT guaranteed to be on today's basis — old quarters may never appear in
+  a post-10:1 filing's comparatives. This is why 1c derives EPS from NI +
+  split-adjusted shares instead of selecting an EPS fact.
+- **Regime non-stationarity:** a backtest window straddling FY2023 punishes any
+  constant-margin model; report split-window metrics (pre/post 2023Q1) rather
+  than blending, or start the scored window at 2023Q2.
+- **Fiscal offset:** silently joining calendar-labeled model quarters to Yahoo
+  fiscal quarters would corrupt the consensus gap — make the mapping explicit
+  and tested.
+- **Attribution mis-read:** on the generic path the "opex" lever does not exist
+  (no GP decomposition); label levers accordingly so the waterfall never implies
+  a decomposition the model didn't make.
+- Keep generic ↔ memory paths fully separated (HANDOFF design contract);
+  the 9Q SK Hynix invariant must stay bit-identical through all three
+  workstreams (baseline sha256 recorded 2026-07-10).
+
+## 7. Verification
+- `pytest tests/test_generic_forecast.py -q` + new fetcher/alignment/contiguity
+  tests (1a: same-accession consistency; 1b: no Q3→Q1 joins; 1c: implied
+  shares monotonic-smooth after normalization, no seams).
+- `python generic_cli.py --profile profiles/nvda.generic.yaml` before/after
+  NVDA-1 — record the measured bias change in the HANDOFF (no presumed target).
+- Memory path regression: `pytest -q` full suite + 9Q backtest sha256 match
+  (`077ecb10…933c`).
