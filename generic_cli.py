@@ -4,8 +4,9 @@
     python generic_cli.py --profile profiles/nvda.generic.yaml --json
 
 Kept separate from cli.py (the memory/SK-Hynix pipeline) so the DRAM/NAND
-backtest coupling and its 9Q invariant are never touched. Offline by design:
-consumes only the profile YAML (no Yahoo/DART), so it runs in the Cowork sandbox.
+backtest coupling and its 9Q invariant are never touched. Forecasting remains
+profile-only; fiscal-aware Yahoo consensus is best-effort and replays from the
+daily cache when available, so an offline run still emits the core report.
 
 Output: Korean console summary + Markdown report (+ optional JSON) under reports/.
 """
@@ -15,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -27,11 +29,13 @@ sys.path.insert(0, str(REPO_ROOT))
 from engine.generic_forecast import run_generic_forecast  # noqa: E402
 from engine.generic_signal import (  # noqa: E402
     build_signal_block,
-    fetch_consensus_fy1_eps,
 )
 from engine.segment_revenue import _next_quarter_label  # noqa: E402
 from engine.skill_metrics import SkillRow, compute_skill  # noqa: E402
+from pipeline.generic_consensus import to_generic_consensus_record  # noqa: E402
+from pipeline.yahoo_fetcher import fetch_consensus  # noqa: E402
 from schemas.generic import GenericProfile  # noqa: E402
+from schemas.models import ConsensusRecord  # noqa: E402
 
 
 def load_generic_profile(path: Path) -> GenericProfile:
@@ -66,7 +70,10 @@ def _skill_rows(rows: list[dict]) -> list[SkillRow]:
     ]
 
 
-def _summarize_window(rows: list[dict]) -> dict:
+def _summarize_window(
+    rows: list[dict],
+    consensus_history: dict[str, dict[str, float | None]] | None = None,
+) -> dict:
     """Aggregate one row window; MAPE/bias are percent, skill values are ratios."""
     revenue_pairs = [(row["model_rev"], row["actual_rev"]) for row in rows]
     eps_pairs = [
@@ -74,7 +81,11 @@ def _summarize_window(rows: list[dict]) -> dict:
         for row in rows
         if row.get("actual_eps") is not None and row.get("model_eps") is not None
     ]
-    skill = compute_skill(_skill_rows(rows), include_trailing=False)
+    skill = compute_skill(
+        _skill_rows(rows),
+        consensus_history=consensus_history,
+        include_trailing=False,
+    )
     return {
         "n": len(revenue_pairs),
         "n_eps": skill.n_eps,
@@ -87,7 +98,10 @@ def _summarize_window(rows: list[dict]) -> dict:
     }
 
 
-def backtest_generic(profile: GenericProfile) -> dict:
+def backtest_generic(
+    profile: GenericProfile,
+    consensus_history: dict[str, dict[str, float | None]] | None = None,
+) -> dict:
     """One-step-ahead, seasonally-aware offline backtest over the actuals block.
 
     Predict each quarter's revenue as prior-actual x (1 + base growth[slot]);
@@ -175,15 +189,17 @@ def backtest_generic(profile: GenericProfile) -> dict:
         "naive_rw_revenue_mape": _mape(rw_rev_pairs),
         "naive_rw_eps_mape": _mape(rw_eps_pairs),
         "rows": rows,
-        "skill": compute_skill(_skill_rows(rows)).model_dump(),
+        "skill": compute_skill(
+            _skill_rows(rows), consensus_history=consensus_history
+        ).model_dump(),
     }
     if profile.regime_break_quarter is not None:
         pre_rows = [row for row in rows if row["quarter"] < profile.regime_break_quarter]
         post_rows = [row for row in rows if row["quarter"] >= profile.regime_break_quarter]
         result["windows"] = {
-            "full": _summarize_window(rows),
-            "pre_break": _summarize_window(pre_rows),
-            "post_break": _summarize_window(post_rows),
+            "full": _summarize_window(rows, consensus_history),
+            "pre_break": _summarize_window(pre_rows, consensus_history),
+            "post_break": _summarize_window(post_rows, consensus_history),
         }
     return result
 
@@ -215,7 +231,12 @@ def _render_window(label: str, window: dict) -> list[str]:
     ]
 
 
-def render_markdown(profile: GenericProfile, fc, bt: dict) -> str:
+def render_markdown(
+    profile: GenericProfile,
+    fc,
+    bt: dict,
+    consensus: ConsensusRecord | None = None,
+) -> str:
     p = profile
     lines = [
         f"# {p.name_kr} ({p.name}) — 실적 전망 (Generic)",
@@ -260,6 +281,24 @@ def render_markdown(profile: GenericProfile, fc, bt: dict) -> str:
                 f"- EPS MAPE {bt['eps_mape']:.1f}% (naive RW {bt['naive_rw_eps_mape']:.1f}%) · EPS bias {bt['eps_bias']:+.1f}%"
             )
         lines.append(f"- {_render_skill(bt['skill'])}")
+    lines += ["", "## Yahoo consensus (fiscal-aware)", ""]
+    if consensus is None:
+        lines.append("- unavailable")
+    else:
+        lines.append(f"- snapshot as-of: {consensus.as_of}")
+        for label in consensus.revenue_estimate_quarterly:
+            revenue = consensus.revenue_estimate_quarterly[label]
+            eps = consensus.eps_estimate_quarterly.get(label)
+            revenue_text = "N/A" if revenue is None else f"{revenue:,.2f}"
+            eps_text = "N/A" if eps is None else f"{eps:,.2f}"
+            lines.append(f"- {label}: revenue {revenue_text} · EPS {eps_text}")
+        for fiscal_year in consensus.revenue_estimate_annual:
+            revenue = consensus.revenue_estimate_annual[fiscal_year]
+            eps = consensus.eps_estimate_annual.get(fiscal_year)
+            revenue_text = "N/A" if revenue is None else f"{revenue:,.2f}"
+            eps_text = "N/A" if eps is None else f"{eps:,.2f}"
+            lines.append(f"- FY{fiscal_year}: revenue {revenue_text} · EPS {eps_text}")
+        lines += [f"- quality: {note}" for note in consensus.quality_notes]
     if p.notes:
         lines += ["", "## 데이터 출처 / 주의", ""]
         lines += [f"- {n}" for n in p.notes]
@@ -279,10 +318,18 @@ def main(argv: list[str] | None = None) -> int:
 
     profile = load_generic_profile(args.profile)
     fc = run_generic_forecast(profile)
-    bt = backtest_generic(profile)
+    raw_consensus = None
+    consensus = None
+    try:
+        raw_consensus = fetch_consensus(profile.ticker)
+        snapshot_as_of = date.fromisoformat(raw_consensus.get("as_of", date.today().isoformat()))
+        consensus = to_generic_consensus_record(raw_consensus, profile, snapshot_as_of)
+    except Exception:
+        consensus = None
+    bt = backtest_generic(profile, consensus.history if consensus is not None else None)
 
     REPORTS_DIR.mkdir(exist_ok=True)
-    md = render_markdown(profile, fc, bt)
+    md = render_markdown(profile, fc, bt, consensus)
     stem = args.profile.stem.replace(".generic", "")
     md_path = REPORTS_DIR / f"{stem}_generic_forecast.md"
     md_path.write_text(md, encoding="utf-8")
@@ -302,14 +349,21 @@ def main(argv: list[str] | None = None) -> int:
         json_path = REPORTS_DIR / f"{stem}_generic_forecast.json"
         weighted_annual = [a.model_dump() for a in fc.weighted_annual]
         weighted_quarterly = [q.model_dump() for q in fc.weighted_quarterly]
-        # Consensus is best-effort (Yahoo); returns None offline so the block
-        # still builds with consensus.direction = "n_a".
-        consensus_fy1 = fetch_consensus_fy1_eps(profile.ticker, w_fy[0].fiscal_year if w_fy else None)
+        target_fiscal_year = w_fy[0].fiscal_year if w_fy else None
+        consensus_fy1 = (
+            consensus.eps_estimate_annual.get(target_fiscal_year)
+            if consensus is not None and target_fiscal_year is not None
+            else None
+        )
         payload = {
             "company": profile.name,
             "weighted_annual": weighted_annual,
             "weighted_quarterly": weighted_quarterly,
             "backtest": bt,
+            "consensus": consensus.model_dump() if consensus is not None else None,
+            "consensus_fetch_timestamp": (
+                raw_consensus.get("fetch_timestamp") if raw_consensus is not None else None
+            ),
             "signal": build_signal_block(
                 weighted_annual, weighted_quarterly, bt, consensus_fy1
             ),

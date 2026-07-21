@@ -154,4 +154,77 @@ consensus N=0.
 
 ## 5. Scope boundary
 
-No 2b fiscal consensus normalization or 2c attribution work was started.
+No 2c attribution work was started.
+
+## 6. Stage 2b — fiscal-aware generic consensus
+
+Implemented on host 2026-07-21 from `PROMPT_nvda2_2b.md`. The memory-path
+`pipeline.consensus_loader.to_consensus_record` and its Yahoo parsing contract
+were not changed.
+
+### Delivered
+
+- New `pipeline/generic_consensus.py` normalizes Yahoo relative periods against
+  each profile's fiscal calendar. Forward model labels reuse
+  `pipeline.edgar_fetcher.model_label_for_period`; annual keys are fiscal-year
+  integers.
+- The anchor guard requires exact equality between latest profile actual
+  `period_end` and latest Yahoo earnings-history end. Missing/mismatched anchors
+  retain independently mapped history but emit explicit `None` forward values.
+- Snapshots whose `as_of` predates the latest actual raise `ValueError`.
+  Revenue/EPS quarterly period-set mismatch is a quality failure and refuses
+  the forward join.
+- Issuer-neutral gates are implemented as specified: 0q revenue ratio
+  0.3x–3.0x and realized net-margin range ±10pp. Missing gate inputs do not
+  fail. Suppressed originals and reasons remain in `quality_notes`.
+- Generic backtest skill now receives normalized vintage history through the
+  existing `BacktestSkill` schema. `n_surprise_scored` is displayed; no new
+  consensus-skill schema or sub-8 claim was introduced.
+- New Yahoo fetches preserve `as_of` plus an ISO UTC `fetch_timestamp` in the
+  existing daily cache payload. The NVDA host snapshot contains both fields.
+- Generic JSON adds `consensus` and `consensus_fetch_timestamp`; Markdown adds
+  fiscal-aware quarterly/annual values and quality notes.
+
+### Verification
+
+| Check | Before 2b | After 2b |
+|---|---:|---:|
+| Full pytest | 173 passed | 186 passed |
+| Added tests | — | 13 |
+| 9Q host canonical | `b979d79f…f6e7` MATCH | `b979d79f…f6e7` MATCH |
+
+Synthetic tests cover Jan-FYE and calendar-FYE labels, integer annual keys,
+history date mapping, missing/mismatched anchors, stale `as_of`, quarterly
+period-set mismatch, unit/margin pass-fail-not-run branches, existing-skill
+wiring, report rendering, and cache metadata persistence.
+
+### Live NVDA snapshot outcome
+
+Cache: `reports/.cache/yahoo_NVDA_20260721.json` (gitignored), fetched once on
+host with `as_of=2026-07-21` and a UTC fetch timestamp.
+
+**REFUSED by anchor guard:** profile latest actual ends `2026-04-26`, while
+Yahoo's latest earnings-history index is `2026-04-30`. Exact equality is the
+binding contract, so forward quarterly labels `2026Q2/2026Q3` and annual keys
+`2027/2028` are retained with `None` values. The four independently mapped
+history rows (`2025Q2`–`2026Q1`) remain available.
+
+| NVDA consensus field | Before 2b | After 2b |
+|---|---:|---:|
+| Forward quarterly/annual record | absent | explicit None (anchor refused) |
+| `n_surprise_scored`, full/post | 0 / 0 | 4 / 4 |
+| `skill_score_eps_vs_consensus`, full/post | None / None | -0.5066 / -0.5066 |
+| Quality notes | absent | latest history 2026-04-30 != actual 2026-04-26 |
+| Fetch metadata in cache/JSON | absent | as_of + UTC timestamp |
+
+The negative consensus skill is a descriptive N=4 point estimate only; it is
+not rendered as a “beats consensus” claim because `MIN_SKILL_N=8`.
+
+### Available TSLA legacy snapshot
+
+The existing same-day TSLA cache predates the new metadata fields, so no
+timestamp was fabricated and no new TSLA network fetch was made. Offline
+normalization was nevertheless measurable: latest actual/history both end
+`2026-03-31`, therefore the join **MAPPED** to `2026Q2/2026Q3` and fiscal years
+2026/2027 with no quality notes. Full/post `n_surprise_scored=4` and descriptive
+consensus skill is -0.0420.

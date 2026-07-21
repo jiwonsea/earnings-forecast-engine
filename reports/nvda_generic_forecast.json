@@ -422,9 +422,9 @@
       "theil_u2_revenue": 0.6277526118856058,
       "theil_u2_eps": 1.0382988570575293,
       "rw_hit_ratio_direction": 0.8846153846153846,
-      "skill_score_eps_vs_consensus": null,
-      "surprise_direction_accuracy": null,
-      "n_surprise_scored": 0,
+      "skill_score_eps_vs_consensus": -0.5065543328904296,
+      "surprise_direction_accuracy": 0.25,
+      "n_surprise_scored": 4,
       "trailing_8q": {
         "naive_rw_revenue_mape": 0.13225489643144078,
         "naive_rw_eps_mape": 0.1921443261669807,
@@ -435,9 +435,9 @@
         "theil_u2_revenue": 0.5847981058605287,
         "theil_u2_eps": 1.0261793623987947,
         "rw_hit_ratio_direction": 1.0,
-        "skill_score_eps_vs_consensus": null,
-        "surprise_direction_accuracy": null,
-        "n_surprise_scored": 0,
+        "skill_score_eps_vs_consensus": -0.5065543328904296,
+        "surprise_direction_accuracy": 0.25,
+        "n_surprise_scored": 4,
         "trailing_8q": null
       }
     },
@@ -459,9 +459,9 @@
           "theil_u2_revenue": 0.6277526118856058,
           "theil_u2_eps": 1.0382988570575293,
           "rw_hit_ratio_direction": 0.8846153846153846,
-          "skill_score_eps_vs_consensus": null,
-          "surprise_direction_accuracy": null,
-          "n_surprise_scored": 0,
+          "skill_score_eps_vs_consensus": -0.5065543328904296,
+          "surprise_direction_accuracy": 0.25,
+          "n_surprise_scored": 4,
           "trailing_8q": null
         },
         "rows": [
@@ -949,9 +949,9 @@
           "theil_u2_revenue": 0.6213510980336505,
           "theil_u2_eps": 0.9980387985268644,
           "rw_hit_ratio_direction": 1.0,
-          "skill_score_eps_vs_consensus": null,
-          "surprise_direction_accuracy": null,
-          "n_surprise_scored": 0,
+          "skill_score_eps_vs_consensus": -0.5065543328904296,
+          "surprise_direction_accuracy": 0.25,
+          "n_surprise_scored": 4,
           "trailing_8q": null
         },
         "rows": [
@@ -1091,6 +1091,57 @@
       }
     }
   },
+  "consensus": {
+    "ticker": "NVDA",
+    "as_of": "2026-07-21",
+    "revenue_estimate_quarterly": {
+      "2026Q2": null,
+      "2026Q3": null
+    },
+    "eps_estimate_quarterly": {
+      "2026Q2": null,
+      "2026Q3": null
+    },
+    "revenue_estimate_annual": {
+      "2027": null,
+      "2028": null
+    },
+    "eps_estimate_annual": {
+      "2027": null,
+      "2028": null
+    },
+    "history": {
+      "2025Q2": {
+        "actual": 1.05,
+        "estimate": 1.00867,
+        "surprise_pct": 0.040999997
+      },
+      "2025Q3": {
+        "actual": 1.3,
+        "estimate": 1.25647,
+        "surprise_pct": 0.0346
+      },
+      "2025Q4": {
+        "actual": 1.62,
+        "estimate": 1.53812,
+        "surprise_pct": 0.053200003
+      },
+      "2026Q1": {
+        "actual": 1.87,
+        "estimate": 1.77191,
+        "surprise_pct": 0.0554
+      }
+    },
+    "notes": [
+      "latest earnings_history end 2026-04-30 != latest actual period_end 2026-04-26; forward consensus anchor refused",
+      "quarterly revenue consensus unavailable",
+      "quarterly EPS consensus unavailable"
+    ],
+    "quality_notes": [
+      "latest earnings_history end 2026-04-30 != latest actual period_end 2026-04-26; forward consensus anchor refused"
+    ]
+  },
+  "consensus_fetch_timestamp": "2026-07-21T13:26:34.474212+00:00",
   "signal": {
     "bvt_independent": true,
     "skill": {
@@ -1130,10 +1181,10 @@
     "consensus": {
       "metric": "eps_fy1",
       "model": 6.274784361204206,
-      "consensus": 8.98594,
-      "gap_pct": -0.3017,
-      "direction": "below"
+      "consensus": null,
+      "gap_pct": null,
+      "direction": "n_a"
     },
-    "stance": "neutral"
+    "stance": "bullish"
   }
 }
