@@ -61,6 +61,41 @@ unchanged, this is an undocumented hash-fixture/vintage reproduction gap, not
 a generic-path code diff. Cowork must independently run its canonical SHA
 recipe before PASS.
 
+**RESOLVED (Cowork, 2026-07-21):** the canonical recipe's consensus leg uses
+`tests/fixtures/sk_hynix_yahoo_estimates.json` (2026-05-30 snapshot), NOT the
+`reports/.cache` yahoo vintages — this was recorded only in Cowork session
+memory (EFE-1 exit, 2026-07-10), hence the host reproduction gap. Now
+codified as `scripts/verify_9q_sha.py`: run post-2a in the sandbox →
+`077ecb10…933c` MATCH (rev MAPE 8.9875% / EPS MAPE 10.3856% / bias −3.5751%).
+Memory-path invariant CONFIRMED intact. Yahoo-vintage-based runs legitimately
+produce different hashes (different consensus input) and are not invariant
+violations.
+
+**Root cause of host/sandbox sha skew (diagnosed 2026-07-21, byte-diff of
+`--dump` outputs):** identical inputs and code produce JSON differing in
+exactly two bytes-worth of float ULPs — `eps_mape` (…305 vs …304) and
+`bias_revenue` (…036 vs …0373). Both are aggregate means; CPython ≥ 3.12
+switched builtin `sum()` to Neumaier compensated summation, so the host
+(3.14.3/win32, pydantic 2.12.5) and sandbox (3.10.12/linux, pydantic 2.13.4)
+differ in the last ULP of summed floats. Semantically identical; not a
+regression. `scripts/verify_9q_sha.py` now carries one canonical sha per
+environment family (`KNOWN_GOOD`): sandbox `077ecb10…933c`, host
+`b979d79f…f6e7`. Regression = a hash not in KNOWN_GOOD under a stable
+environment. Codex's earlier vintage-based hashes coinciding with the
+fixture-based host hash is expected: the fixture is the 2026-05-30 vintage.
+
+### Cowork independent verification (2026-07-21) — stage 2a: PASS
+
+Sandbox, post-`9908180`: full `pytest -q` 173 passed (matches host); 9Q
+canonical sha MATCH via the recipe above; NVDA+TSLA JSON identity checks all
+green — `legacy == skill × 100` (rev & EPS), window partition 26 = 14 + 12
+with APE-numerator union reproducing full-window MAPE, boundary 2023Q2
+post-side, no duplicate quarters, all 52 rows `prior_quarter_split_adjusted`
+(no fallback), signal primary = post_break (values equal the post_break
+window block), `MIN_SKILL_N = 8`, trailing-8Q numerically equal to the last 8
+post-break rows (2024Q2→2026Q1), `full_vs_primary_disagreement = true` on
+both profiles.
+
 ## 3. Before/after measurements
 
 All error MAPE/bias columns are percent. MASE and Theil U2 are ratios. These are
