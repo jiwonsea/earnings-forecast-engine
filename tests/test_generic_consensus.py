@@ -116,6 +116,16 @@ def test_calendar_filer_maps_next_quarter_and_current_fiscal_year() -> None:
     assert set(record.revenue_estimate_annual) == {2026, 2027}
 
 
+def test_same_fiscal_quarter_anchor_accepts_month_end_history_date() -> None:
+    record = to_generic_consensus_record(
+        _raw(latest_history="2026-04-30"), _profile(), date(2026, 7, 21)
+    )
+
+    assert record.revenue_estimate_quarterly["2026Q2"] == pytest.approx(90_000.0)
+    assert record.eps_estimate_quarterly["2026Q2"] == 2.5
+    assert record.quality_notes == []
+
+
 @pytest.mark.parametrize("history", [[], None])
 def test_missing_history_refuses_forward_but_keeps_explicit_none(history) -> None:
     raw = _raw()

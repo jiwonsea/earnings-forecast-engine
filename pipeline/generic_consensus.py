@@ -137,7 +137,15 @@ def to_generic_consensus_record(
     eps_y_raw = _period_values(raw_yahoo.get("earnings_estimate"), _FORWARD_YEARS)
 
     latest_history_end = max(history_ends) if history_ends else None
-    anchor_safe = latest_history_end == latest_actual.period_end
+    latest_actual_label = model_label_for_period(
+        latest_actual.period_end, profile.fiscal_year_end_month
+    )
+    latest_history_label = (
+        model_label_for_period(latest_history_end, profile.fiscal_year_end_month)
+        if latest_history_end is not None
+        else None
+    )
+    anchor_safe = latest_history_label == latest_actual_label
     if not anchor_safe:
         reason = (
             "earnings_history missing; forward consensus anchor refused"

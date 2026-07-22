@@ -8,7 +8,7 @@ schema validation surfaces unavailability rather than silently skipping.
 from __future__ import annotations
 
 import json
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from pipeline._ssl_setup import ensure_ssl_env
@@ -64,7 +64,7 @@ def fetch_consensus(ticker: str, use_cache: bool = True) -> dict:
     raw = {
         "ticker": ticker,
         "as_of": date.today().isoformat(),
-        "fetch_timestamp": datetime.now(UTC).isoformat(),
+        "fetch_timestamp": datetime.now(timezone.utc).isoformat(),
         "earnings_estimate": _records(getattr(ticker_obj, "earnings_estimate", None)),
         "revenue_estimate": _records(getattr(ticker_obj, "revenue_estimate", None)),
         "earnings_history": _records(getattr(ticker_obj, "earnings_history", None)),
