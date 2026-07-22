@@ -85,6 +85,10 @@ def verify(rows: list[dict], blob: dict, unit_scale: float) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    reconfigure_stdout = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure_stdout):
+        reconfigure_stdout(encoding="utf-8")
+
     parser = argparse.ArgumentParser(description="Build generic-profile actuals from EDGAR")
     parser.add_argument("--cik", required=True, type=int)
     parser.add_argument("--fye-month", required=True, type=int)
