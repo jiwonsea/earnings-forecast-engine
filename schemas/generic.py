@@ -104,6 +104,17 @@ class GenericScenarioAssumptions(BaseModel):
         return self._as_vector(self.net_interest_pct_of_revenue, n)
 
 
+class GenericBacktestMethodology(GenericScenarioAssumptions):
+    """Calendar-slot drivers used only by the generic historical backtest.
+
+    Vector positions map to the target quarter (Q1->0 ... Q4->3). The fixed
+    probability is inherited only to reuse the scenario driver contract;
+    backtesting never probability-weights this block.
+    """
+
+    probability: Literal[1.0] = 1.0
+
+
 class SplitEvent(BaseModel):
     """One stock split: shares are multiplied by ``ratio`` on ``date``.
 
@@ -183,6 +194,7 @@ class GenericProfile(BaseModel):
     actuals: list[GenericActualQuarter] = Field(default_factory=list)
     split_history: list[SplitEvent] = Field(default_factory=list)
     regime_break_quarter: str | None = Field(None, pattern=r"^\d{4}Q[1-4]$")
+    backtest_methodology: GenericBacktestMethodology | None = None
 
     bear: GenericScenarioAssumptions
     base: GenericScenarioAssumptions
