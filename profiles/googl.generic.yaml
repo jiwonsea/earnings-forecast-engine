@@ -6,7 +6,7 @@
 # quarters from EDGAR companyfacts as-filed originals (10-Q; Q4 = 10-K annual
 # minus same-FY Q3 10-Q 9M). Regenerate with:
 #   python scripts/build_generic_actuals.py --cik 1652044 --fye-month 12 \
-#       --start 2024Q2 --end 2026Q1   (cache: reports/.cache/, sandbox-derived).
+#       --start 2024Q2 --end 2026Q2   (cache: reports/.cache/, SEC companyfacts).
 # EPS is NOT stored: it is DERIVED at load from net_profit and per-quarter
 # as-filed diluted shares (schemas/generic.py). As-filed EPS + accession are
 # preserved in each row's source string.
@@ -38,7 +38,7 @@ seed:
   net_profit: 62578
   eps_diluted: 5.11
 
-# Official standalone quarters, contiguous 2024Q2..2026Q1 (8 rows, Q4s restored).
+# Official standalone quarters, contiguous 2024Q2..2026Q2 (9 rows, Q4s restored).
 actuals:
   - { quarter_label: "2024Q2", period_end: 2024-06-30, revenue_total: 84742, net_profit: 23619, diluted_shares: 12495000000, source: "EDGAR 10-Q 0001652044-24-000079 filed 2024-07-24 (as-filed EPS 1.89, as-filed basis)" }
   - { quarter_label: "2024Q3", period_end: 2024-09-30, revenue_total: 88268, net_profit: 26301, diluted_shares: 12419000000, source: "EDGAR 10-Q 0001652044-24-000118 filed 2024-10-30 (as-filed EPS 2.12, as-filed basis)" }
@@ -48,6 +48,7 @@ actuals:
   - { quarter_label: "2025Q3", period_end: 2025-09-30, revenue_total: 102346, net_profit: 34979, diluted_shares: 12203000000, source: "EDGAR 10-Q 0001652044-25-000091 filed 2025-10-30 (as-filed EPS 2.87, as-filed basis)" }
   - { quarter_label: "2025Q4", period_end: 2025-12-31, revenue_total: 113829, net_profit: 34455, diluted_shares: 12230000000, source: "EDGAR 10-K−10-Q 0001652044-26-000018 − 0001652044-25-000091 filed 2026-02-05 (as-filed EPS n/a, as-filed basis)" }
   - { quarter_label: "2026Q1", period_end: 2026-03-31, revenue_total: 109896, net_profit: 62578, diluted_shares: 12238000000, source: "EDGAR 10-Q 0001652044-26-000048 filed 2026-04-30 (as-filed EPS 5.11, as-filed basis)" }
+  - { quarter_label: "2026Q2", period_end: 2026-06-30, revenue_total: 119796, net_profit: 112193, diluted_shares: 12309000000, source: "EDGAR 10-Q 0001652044-26-000071 filed 2026-07-23 (as-filed EPS 9.11, as-filed basis)" }
 
 window:
   start_quarter: "2026Q2"
@@ -95,3 +96,4 @@ notes:
   - "창은 2024Q2부터: 이전 분기 10-Q는 3개월 희석주식수를 same-accession으로 태깅하지 않아 무결성 규칙상 재구축 불가."
   - "FY2025 검증: 분기 매출 합 = 402,837 ($402,836M 10-K과 라운딩 오차 1), 순이익 합 = 132,170 (일치)."
   - "2026Q1 순이익 $62.6bn(순마진 57%)은 OI&E 비상장 지분 평가이익이 크게 반영된 값 — headline EPS 왜곡 주의. generic OP 기반 EPS는 이 일회성 이익을 반영하지 않음(영업 EPS proxy)."
+  - "2026Q2 순이익 $112.2bn·GAAP EPS $9.11은 OI&E 지분증권 평가이익 $99.0bn이 반영된 값 — GAAP 라벨 유지, 영업 EPS proxy와 직접 비교 금지."

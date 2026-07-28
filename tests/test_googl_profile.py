@@ -1,7 +1,7 @@
 """GOOGL-1 (2026-07-22): integrity checks on the committed googl.generic profile.
 
-Alphabet's actuals were rebuilt from EDGAR as-filed originals (2024Q2..2026Q1,
-8 contiguous quarters, Q4s restored). Unlike NVDA/TSLA the whole window is POST
+Alphabet's actuals were rebuilt from EDGAR as-filed originals (2024Q2..2026Q2,
+9 contiguous quarters, Q4s restored). Unlike NVDA/TSLA the whole window is POST
 the 20:1 split (2022-07-15) so split_history is EMPTY and shares sit on a single
 basis. These tests pin: single-basis diluted shares, no seams, derived-EPS ==
 as-filed, contiguity/backtest-scores, and the FY2025 sum identity.
@@ -30,6 +30,7 @@ def test_googl_window_is_contiguous_and_post_split():
     assert labels == [
         "2024Q2", "2024Q3", "2024Q4", "2025Q1",
         "2025Q2", "2025Q3", "2025Q4", "2026Q1",
+        "2026Q2",
     ]
     # Whole window post the 20:1 split -> no split adjustment applied.
     assert p.split_history == []
@@ -51,6 +52,16 @@ def test_googl_derived_eps_matches_as_filed():
     assert by_label["2024Q2"].eps_diluted == pytest.approx(1.89, abs=0.01)
     assert by_label["2025Q1"].eps_diluted == pytest.approx(2.81, abs=0.01)
     assert by_label["2026Q1"].eps_diluted == pytest.approx(5.11, abs=0.01)
+    assert by_label["2026Q2"].eps_diluted == pytest.approx(9.11, abs=0.01)
+    assert by_label["2026Q2"].net_profit == 112193
+    assert by_label["2026Q2"].diluted_shares == 12_309_000_000
+    assert "0001652044-26-000071" in by_label["2026Q2"].source
+
+
+def test_googl_postprint_actual_does_not_roll_forward_window():
+    p = _load()
+    assert p.seed.quarter_label == "2026Q1"
+    assert p.window.start_quarter == "2026Q2"
 
 
 def test_googl_fy2025_sum_identity():
@@ -68,6 +79,6 @@ def test_googl_backtest_scores_and_beats_naive_revenue():
 
     bt = backtest_generic(_load())
     assert bt.get("revenue_mape") is not None, bt.get("note")
-    assert bt["n"] == 7  # 8 contiguous quarters -> 7 one-step pairs
+    assert bt["n"] == 8  # 9 contiguous quarters -> 8 one-step pairs
     # Revenue model must beat the naive random walk (the model's real edge).
     assert bt["revenue_mape"] < bt["naive_rw_revenue_mape"]
