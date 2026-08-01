@@ -3,6 +3,29 @@
 Phase B uses two sources:
   - local IR deck PDFs, extracted with PyMuPDF
   - keyless DART public viewer MD&A text, cached under reports/.cache
+
+STATUS: DORMANT (2026-07-31). The code is intact but unreachable in the current
+configuration: the only production callers are cli.py's Phase-B modes
+(--signal-backtest / --call-brief), and both exit early unless the profile
+carries a `signal_layer` section. No profile has carried one since 4ebeb7c
+(2026-07-10), where the block was dropped from profiles/sk_hynix.yaml during a
+window roll-forward. Whether that removal was a deliberate retirement or
+collateral loss was NOT determined; see HANDOFF_CODEX_doc_ingest_2026-07-31.md.
+
+KNOWN GAP — do not treat these functions as extraction-complete:
+  - load_ir_decks computes char_count_kr but nothing checks it. An image-only or
+    partially-image PDF yields empty/partial text and flows on without error.
+  - fetch_dart_mdna guards only `char_count_kr == 0`, which cannot distinguish a
+    genuinely empty source from a failed extraction (reports/.cache/
+    mdna_20240814003052.json is 67 chars of boilerplate and passes).
+  - _find_mdna_params slices the FIRST matching viewer node only; a filing that
+    splits the section across several eleIds yields partial text silently.
+
+A completeness contract (per-page char counts, extractor version, section
+anchors, sha256 of the source) is deliberately NOT implemented here: with zero
+reachable callers it could not be validated on a real execution path. It is
+specified as part of Phase-B reactivation, together with restored profiles and
+real IR-deck / DART fixtures.
 """
 
 from __future__ import annotations

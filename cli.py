@@ -392,7 +392,13 @@ def _event_dates_from_yahoo(events_payload: dict) -> dict:
 
 
 def run_signal_backtest_mode(args: argparse.Namespace, profile_path: Path) -> int:
-    """CAR event-study backtest of text signals (Phase B).
+    """CAR event-study backtest of text signals (Phase B). DORMANT.
+
+    Unreachable in the current configuration: no profile carries a `signal_layer`
+    section (dropped in 4ebeb7c, 2026-07-10), so this returns 2 before touching
+    any loader. Reactivation = restore the profile block + real deck/DART
+    fixtures + the extraction-completeness contract in
+    pipeline/disclosure_loader.py, as one piece of work.
 
     Wiring only — leaf functions (disclosure_loader, ai.extractor, engine.*) are
     implemented by Codex. dry-run uses fixtures so no API key/decks are required.
@@ -452,7 +458,12 @@ def run_signal_backtest_mode(args: argparse.Namespace, profile_path: Path) -> in
 
 
 def run_call_brief_mode(args: argparse.Namespace, profile_path: Path) -> int:
-    """Forward earnings-call pre-briefing (Phase B).
+    """Forward earnings-call pre-briefing (Phase B). DORMANT.
+
+    Same status as run_signal_backtest_mode: no profile carries `signal_layer`,
+    so this returns 2 before fetching anything. See
+    pipeline/disclosure_loader.py for the known extraction gaps that must be
+    closed as part of reactivation.
 
     Wiring only — leaf functions implemented by Codex. dry-run uses fixtures.
     """

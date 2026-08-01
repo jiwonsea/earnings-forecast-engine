@@ -23,6 +23,7 @@
 
 - 함수 본문 구현·리팩토링, pytest 케이스, Pydantic 스키마, 파이프라인(httpx·yfinance) 래퍼, 템플릿.
 - Phase B(시그널 레이어): LLM 추출 호출(`ai/extractor`)·PDF/MD&A 파싱(`pipeline/disclosure_loader`)·CAR event study(`engine/signal_backtest`) 본문 구현. 방법론 스펙은 `HANDOFF_phase_b.md`(Claude), 가정·라벨·해석은 본인.
+  - **STATUS: DORMANT (2026-07-31)** — 활성 프로파일 0개(`signal_layer` 부재), `reports/.cache/signal_*.json` 0건 = 이 추출기가 실제 리포트를 만든 적 없음. 재활성화 조건은 `HANDOFF_phase_b.md` 상단 배너 참조.
 
 ## 가정의 출처와 소유 (정직성 핵심)
 

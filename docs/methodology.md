@@ -196,6 +196,8 @@ fair_value_delta_pct = fair_value_elasticity 횞 eps_delta_pct
 誘몃떖 ??媛???섏튂 ?ш?????YAML ?섏젙 ???ъ떎??
 ## §12. 컨센서스 시그널 레이어 (Phase B)
 
+> **STATUS: DORMANT (2026-07-31).** 코드는 온전하나 **활성 프로파일 0개** — `signal_layer` 섹션을 가진 프로파일이 `4ebeb7c`(2026-07-10) 이후 없어 `--signal-backtest`/`--call-brief`는 진입 즉시 `return 2`. 삭제가 의도적 은퇴였는지 롤포워드 중 부수 유실이었는지는 미판정. 재활성화는 프로파일 복원 + 실제 deck/DART fixture + 추출 완전성 계약을 **한 작업**으로 묶어 진행한다. 근거: `HANDOFF_CODEX_doc_ingest_2026-07-31.md`.
+
 공시·IR 텍스트를 구조화 신호로 바꿔 (a) forward 콜 사전 브리핑과 (b) 신호의 주가반응 예측력 backtest를 산출한다.
 공식·검증 상세는 `HANDOFF_phase_b.md`와 코드(`engine/signal_*`)에 1:1로 유지한다.
 

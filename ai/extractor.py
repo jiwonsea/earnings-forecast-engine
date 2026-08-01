@@ -13,6 +13,14 @@ Everything around it (cache key, read/write, JSON parse boundary) is fixed here.
 
 SSL: the anthropic SDK uses httpx, which fails on non-ASCII home paths just like
 the DART/yfinance clients. `ensure_ssl_env()` must run before importing anthropic.
+
+STATUS: DORMANT (2026-07-31). Reached only through cli.py's Phase-B modes, which
+exit early unless a profile carries a `signal_layer` section; none has since
+4ebeb7c (2026-07-10). reports/.cache/signal_*.json is empty, i.e. this extractor
+has never fed a shipped report. Input completeness is NOT verified upstream
+(see pipeline/disclosure_loader.py STATUS) — a half-empty document would be
+extracted and cached without error. Do not reactivate without the completeness
+contract described there.
 """
 
 from __future__ import annotations

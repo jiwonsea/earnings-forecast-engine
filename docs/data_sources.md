@@ -154,5 +154,6 @@ Python 라이브러리 `yfinance` 사용. ticker 형식: `000660.KS` (KOSPI), `8
 - **DART_API_KEY**: 블로커 아님(공개뷰어로 텍스트 확보 가능)이나, 안정성(rate limit·구조화 응답)을 위해 발급 권장. `.env` 신설 필요(`.env.example` 참조).
 - **IR deck 수집 방식**(수동 N개 vs Playwright 1회): **확정 = 수동 N개** (2026-06-03 사용자 결정). 본인이 분기별 deck PDF 8~12개를 `C:/temp/earnings_forecast/decks/`에 배치, `profiles/sk_hynix.yaml:signal_layer.decks`에 event_label↔doc_date 매핑. 스크레이퍼 코드 없음(T0정렬 정확·인과 최강·스코프 내).
 - **시그널 추출 LLM**(Phase B): **확정 = Claude Haiku 4.5** (`anthropic` SDK, 2026-06-03 사용자 승인). temperature 0 + 프롬프트 캐싱 + 응답 디스크 캐시(`reports/.cache/signal_*.json`)로 재현성. 키 `ANTHROPIC_API_KEY`(`--dry-run`은 fixture라 불요).
+- **[2026-07-31 상태정정] 위 두 결정은 현재 미가동.** `profiles/` 12개 중 `signal_layer` 보유 0개(`4ebeb7c`에서 `sk_hynix.yaml`의 블록 제거) → deck 경로·MD&A 경로 모두 진입 불가, `reports/.cache/signal_*.json` 0건. Phase-B는 **동면(DORMANT)** 상태이며 추출 완전성 미검증 상태로 남아 있다(`pipeline/disclosure_loader.py` STATUS 참조).
 - Phase A(EFE 코어) 8Q MAPE 백테스트의 actual 재무는 별개 트랙(DART OpenAPI 키 또는 yfinance `quarterly_financials`) — 본 Phase 0 시그널 타깃과 무관.
 - **[별도 태스크] 컨센서스 소스 교체** (사용자 결정 2026-05-30): yfinance `.KS` 컨센은 신뢰불가로 검증됨 — 매출·EPS 쌍의 함의 순이익률이 FY26 63%·0q 60%로 물리적 불가능(SK 실측 최대 ~30%). Phase A에서는 리포트에 신뢰불가 경고만 표시하고 gap을 억제. 신뢰 대체원(FnGuide/WISEreport, 유료·인증)으로의 교체는 P1 별도 태스크로 분리 — Phase A 코어 green 이후 Phase B 근처에서 착수.

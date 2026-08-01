@@ -1,5 +1,7 @@
 # HANDOFF — Phase B 컨센서스 시그널 레이어 (Codex 구현)
 
+> **STATUS: DORMANT (2026-07-31).** 코드는 온전하나 **활성 프로파일 0개** — `signal_layer` 섹션을 가진 프로파일이 `4ebeb7c`(2026-07-10) 이후 없어 `--signal-backtest`/`--call-brief`는 진입 즉시 `return 2`. 삭제가 의도적 은퇴였는지 롤포워드 중 부수 유실이었는지는 미판정. 재활성화는 프로파일 복원 + 실제 deck/DART fixture + 추출 완전성 계약을 **한 작업**으로 묶어 진행한다. 근거: `HANDOFF_CODEX_doc_ingest_2026-07-31.md`.
+
 > **이전 세션과 무관, 캐시 없이 읽어라.** 경로 `F:/dev/Portfolio/earnings-forecast-engine` (ASCII).
 > Claude가 scaffold(스키마·시그니처·프롬프트·fixture·테스트)를 작성했다. Codex는 아래 명세대로 **함수 본문만** 채운다.
 > **YAML·주석·name_kr·프롬프트 문구 보존 — 코드만 수정.** 프롬프트 변경 시 `ai/prompts.py:PROMPT_VERSION` 올릴 것.
