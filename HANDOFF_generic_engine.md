@@ -29,7 +29,10 @@ Microsoft/NVIDIA/Apple 등에 부적합. `nand_asp_qoq`를 MSFT에 쓰는 건 �
 
 ## 검증 (이 세션)
 ```
-python -m pytest -q            # 97 pass (+8 generic = 105); 1 fail = PDF dep(pdfplumber) 환경이슈, 코드무관
+python -m pytest -q            # 97 pass (+8 generic = 105); 1 fail = tests/test_disclosure_loader.py::test_fetch_dart_mdna_nonempty
+                               #   (라이브 DART 네트워크 의존 테스트, 코드무관)
+                               # 2026-07-31~ : Phase-B 동면 조치로 @pytest.mark.network 부여 →
+                               #   pyproject `addopts = -m 'not network'`에 의해 기본 실행에서 제외(전체 그린)
 python generic_cli.py --profile profiles/nvda.generic.yaml   # 8종 모두 리포트 생성 OK
 ```
 결과(2026 가중 EPS / 매출 MAPE vs naive RW): NVDA 7.20 / 8.5%(13.3%) · MSFT 17.99 / 2.4%(5.1%)
