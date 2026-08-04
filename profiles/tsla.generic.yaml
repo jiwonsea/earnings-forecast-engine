@@ -76,26 +76,39 @@ window:
   start_quarter: "2026Q2"
   n_quarters: 4
 
+# Historical one-step methodology uses target-quarter calendar slots:
+# [Q1, Q2, Q3, Q4]. Revenue rates are the 2023Q1-2026Q1 mean QoQ changes
+# from the as-filed actuals above; below-OP uses a recent negative OI&E bias.
+backtest_methodology:
+  revenue_growth_qoq: [-0.14, 0.14, 0.06, -0.01]
+  op_margin: 0.05
+  effective_tax_rate: 0.15
+  net_interest_pct_of_revenue: -0.005
+
 # Auto margins thin/volatile; energy + regulatory credits + other income swing
 # net materially. op_margin here is a blended ESTIMATE (~6%). HIGH UNCERTAINTY.
+# Q2 first-step growth is anchored to Tesla IR's 2026-07-02 release:
+# 480,126 deliveries and 13.5 GWh storage deployments.
+# 2026Q1 EDGAR actuals above: $940M operating income, $477M net income on
+# $22,387M revenue; use scenarioized below-OP assumptions because the gap is volatile.
 base:
   probability: 0.50
   rationale: "차량 판매 완만 회복 + 에너지 저장 고성장. 영업이익률 ~6%(추정). 오토파일럿/로보택시 옵션가치는 미반영."
-  revenue_growth_qoq: [-0.05, 0.05, 0.08, 0.10]
+  revenue_growth_qoq: [0.20, 0.05, 0.08, -0.10]
   op_margin: 0.06
   effective_tax_rate: 0.15
-  net_interest_pct_of_revenue: 0.015
+  net_interest_pct_of_revenue: 0.0  # Neutral; 2026Q1 below-OP was negative and volatile.
 bear:
   probability: 0.25
   rationale: "가격 경쟁 심화·수요 약세로 오토 마진 추가 압박, 규제 크레딧 축소."
-  revenue_growth_qoq: [-0.10, 0.00, 0.03, 0.05]
+  revenue_growth_qoq: [0.14, 0.00, 0.03, -0.15]
   op_margin: 0.03
   effective_tax_rate: 0.18
-  net_interest_pct_of_revenue: 0.015
+  net_interest_pct_of_revenue: -0.010  # Downside for bitcoin/FX and other-income swings.
 bull:
   probability: 0.25
   rationale: "신모델·에너지 급성장 + FSD 수익화로 마진 반등."
-  revenue_growth_qoq: [0.00, 0.10, 0.13, 0.15]
+  revenue_growth_qoq: [0.25, 0.10, 0.13, -0.05]
   op_margin: 0.10
   effective_tax_rate: 0.13
   net_interest_pct_of_revenue: 0.015
