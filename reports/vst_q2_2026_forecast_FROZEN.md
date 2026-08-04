@@ -299,3 +299,16 @@ F = D&A + 이자비용 − 기타수익  (분기 고정블록)
 ---
 
 _동결자: Claude (Cowork, claude-opus-5) · 2026-08-05 00:52 KST · 이 문서 이후의 모든 수정은 append 마커로만 기록한다._
+
+<!-- VST_Q2_2026_PREPRINT_CORRECTION_START -->
+
+## 발표 전 데이터 정정 append — 2026-08-05
+
+- **정정:** 본문은 2025Q3 릴리스의 구버전 헤지 커버리지(2026년 약 96%, 미헤지 4%)를 인용했다. 더 최신인 2026Q1 공식 릴리스(2026-05-07)는 2026년 예상 발전량의 **약 98%가 헤지**되어 있다고 명시한다. 따라서 미헤지 전달 경로는 **약 2%**다.
+- **영향:** 수치 전망, 시나리오 확률, `MISS` 사전등록, adj EBITDA base/band는 모두 불변이다. 최신 수치는 여름 가격 상방의 당해 P&L 전달 제한 논거를 약화하지 않고 강화한다.
+- **원본 프로파일(불변):** `profiles/vst.generic.yaml` · sha256 `e5ab8b21c3612b7d6d11bede7b56f7b2d297ee54f5795fe9906ef92a1fd80a6b`
+- **정정 프로파일:** `profiles/vst_v2.generic.yaml` · sha256 `a37ccfb7e6581d3c8e5be7838b7f82cf50386876ba08b1793a7a3110c2b8d872`
+- **출처:** Vistra, “Vistra Reports First Quarter 2026 Results,” 2026-05-07, `https://investor.vistracorp.com/2026-05-07-Vistra-Reports-First-Quarter-2026-Results`.
+- **재현:** v1/v2의 확률가중 4분기 EPS와 FY EPS는 bit-identical이다. 변경은 rationale/provenance 텍스트에 한정된다.
+
+<!-- VST_Q2_2026_PREPRINT_CORRECTION_END -->
