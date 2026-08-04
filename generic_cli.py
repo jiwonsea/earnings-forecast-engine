@@ -132,13 +132,17 @@ def backtest_generic(
             }
 
     n = profile.window.n_quarters
-    g = profile.base.growth(n)
-    m = profile.base.margin(n)
-    t = profile.base.tax(n)
-    ni = profile.base.net_interest(n)
+    methodology = profile.backtest_methodology or profile.base
+    driver_n = 4 if profile.backtest_methodology is not None else n
+    g = methodology.growth(driver_n)
+    m = methodology.margin(driver_n)
+    t = methodology.tax(driver_n)
+    ni = methodology.net_interest(driver_n)
     scale = profile.unit_scale
 
     def _slot(label: str) -> int:
+        if profile.backtest_methodology is not None:
+            return int(label[-1]) - 1
         return min(int(label[-1]) - 1, n - 1)
 
     rev_pairs: list[tuple[float, float]] = []
@@ -223,10 +227,15 @@ def _render_skill(skill: dict) -> str:
 
 def _render_window(label: str, window: dict) -> list[str]:
     """Render one backtest window with percent errors and ratio-based skill."""
+    def percent(value: float | None, *, signed: bool = False) -> str:
+        if value is None:
+            return "N/A"
+        return f"{value:+.1f}%" if signed else f"{value:.1f}%"
+
     return [
         f"- **{label}** · N={window['n']} (EPS {window['n_eps']}) · "
-        f"매출 MAPE {window['revenue_mape']:.1f}% / bias {window['revenue_bias']:+.1f}% · "
-        f"EPS MAPE {window['eps_mape']:.1f}% / bias {window['eps_bias']:+.1f}%",
+        f"매출 MAPE {percent(window['revenue_mape'])} / bias {percent(window['revenue_bias'], signed=True)} · "
+        f"EPS MAPE {percent(window['eps_mape'])} / bias {percent(window['eps_bias'], signed=True)}",
         f"  - {_render_skill(window['skill'])}",
     ]
 
