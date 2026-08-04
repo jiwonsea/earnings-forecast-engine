@@ -312,3 +312,28 @@ _동결자: Claude (Cowork, claude-opus-5) · 2026-08-05 00:52 KST · 이 문서
 - **재현:** v1/v2의 확률가중 4분기 EPS와 FY EPS는 bit-identical이다. 변경은 rationale/provenance 텍스트에 한정된다.
 
 <!-- VST_Q2_2026_PREPRINT_CORRECTION_END -->
+
+<!-- VST_Q2_2026_SOURCE_PRESERVATION_START -->
+
+## 발표 전 원문 보존 append — 2026-08-05 02:26:44 KST
+
+SEC 원문 9건을 `reports/.cache/src/`에 바이트 단위로 저장하고 각 파일의 URL·accession·취득시각·크기·SHA-256을 동명 `.meta.json` sidecar에 기록했다.
+
+| 원문 | bytes | sha256 |
+|---|---:|---|
+| `vst_companyconcept_revenues_20260805.json` | 17,632 | `a3eb1f5000ecf4f9e67129a3e678522b1f6882d2b1eb0b7983a469737bab5b8e` |
+| `vst_companyconcept_operating_income_loss_20260805.json` | 17,361 | `2c1d558c21e93e45abef09df64b689b77d1ee0c9436f08167715161341278bd2` |
+| `vst_companyconcept_eps_diluted_20260805.json` | 16,572 | `5de00c51302cdbd7500a7c4e60c6a0662567b96b4e7672f59821ca1650132d7c` |
+| `vst_companyconcept_diluted_shares_20260805.json` | 15,843 | `0961e0b280f1fcb262c320b3068b7e4f58a64d8fd287c1fdd0ce2be13de4f10b` |
+| `vst_companyconcept_ni_common_diluted_20260805.json` | 3,901 | `922274a54fb97bab68b9197dcb1cd8e3353d4718638f02ae0edc7ddcf093be1e` |
+| `vst_10q_20260331_20260805.htm` | 2,839,129 | `60967b65eed8b170a08e898df3fc35e3d494bf17a86df2733a3a58ec53bc0c8b` |
+| `vst_10q_20250630_20260805.htm` | 3,970,174 | `ee9245af7d47542188397dae3c8103bb64ddc84799c58f0882e37e071eccc69f` |
+| `vst_10k_20251231_20260805.htm` | 5,587,052 | `7f14fefedd12aa959de58c3ab44de4c2eb77d12ec1c4e9ca41c1e91326f09225` |
+| `vst_10k_20241231_20260805.htm` | 5,623,205 | `06e4212948404275e38ded26e4421d91ac8869d42f19c4032a29f1941e1edee3` |
+
+- **해시 검증:** sidecar 9건의 `bytes`와 `sha256`을 저장 파일에서 재계산해 전부 MATCH.
+- **분량:** JSON/inline XBRL HTML은 고정 물리 페이지가 없어 `page_count: null`과 형식상 사유를 sidecar에 기록했다.
+- **구조 확인:** companyconcept 5종의 CIK/tag/unit을 파싱했고 filing 4건에서 HTML table 91/100/166/159개를 확인했다.
+- **표 시각 확인:** 인앱 브라우저가 세션에 제공되지 않아 미수행. filing sidecar에 `not_performed_in_app_browser_unavailable`로 명시했으며, 이 항목만 미완이다.
+
+<!-- VST_Q2_2026_SOURCE_PRESERVATION_END -->

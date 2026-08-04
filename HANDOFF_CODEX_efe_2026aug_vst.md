@@ -151,3 +151,9 @@ VST 고유 수치와 논리는 프로파일 및 전용 테스트에만 있고 ge
 ---
 
 _작성: Claude (Cowork, claude-opus-5) · 2026-08-05 00:52 KST · git commit은 호스트/Codex 전담._
+
+## §8 원문 보존 결과 — 2026-08-05
+
+SEC companyconcept 5종과 10-Q/10-K 4건을 `reports/.cache/src/`에 원문 바이트 + `.meta.json` sidecar로 보존했다. sidecar의 크기와 SHA-256을 재계산해 9건 모두 일치했다. 상세 파일명·크기·해시는 FROZEN의 `VST_Q2_2026_SOURCE_PRESERVATION` append에 기록했다.
+
+JSON과 SEC inline XBRL HTML은 고정 물리 페이지가 없어 page count를 `null`로 기록했다. 인앱 브라우저가 제공되지 않아 filing 표 시각 확인은 수행하지 못했고 sidecar에 명시했다. 따라서 원문 바이트·출처·해시 감사 사슬은 완결됐지만, §7 항목 7의 시각 확인은 여전히 미완이다.
