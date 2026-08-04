@@ -228,3 +228,54 @@ normalization was nevertheless measurable: latest actual/history both end
 `2026-03-31`, therefore the join **MAPPED** to `2026Q2/2026Q3` and fiscal years
 2026/2027 with no quality notes. Full/post `n_surprise_scored=4` and descriptive
 consensus skill is -0.0420.
+
+### Cowork independent verification (2026-07-21) — stage 2b: FAIL (one item), fix-loop
+
+**Blocking:** `pipeline/yahoo_fetcher.py` uses `from datetime import UTC` —
+Python ≥ 3.11 only. The sandbox canonical environment (3.10.12) fails test
+collection on 3 modules (`generic_cli` imports `yahoo_fetcher` at module
+level). Fix: `from datetime import date, datetime, timezone` +
+`datetime.now(timezone.utc)`. With that one-line substitution applied
+locally, the sandbox run is fully green: **186 passed**,
+`scripts/verify_9q_sha.py` exit 0 (sandbox canonical), offline NVDA replay
+reproduces the host report exactly — refusal note preserved verbatim in
+`notes` + `quality_notes`, forward quarterly `2026Q2/2026Q3` and annual
+`2027/2028` explicit None, history `2025Q2–2026Q1` kept,
+`n_surprise_scored=4`, consensus skill −0.5066 descriptive-only (no claim
+under `MIN_SKILL_N=8`). `yahoo_fetcher` diff is metadata-add only (as_of +
+UTC timestamp at fetch), raw parsing untouched — in-scope. 12 consensus
+tests cover Jan-FYE mapping, anchor/missing-history refusal, period-set
+mismatch, and every gate branch (suppress+audit / not-run-not-failure).
+The local substitution was REVERTED after verification; tree matches
+`9d7200c` apart from Cowork-run report regenerations.
+
+**Contract question for Codex (follow-up, not blocking the fix-loop):** the
+exact-date anchor equality refused NVDA on `2026-04-26` (fiscal quarter end,
+last-Sunday convention) vs `2026-04-30` (Yahoo month-end convention). For
+non-calendar-month-end filers this guard refuses ALWAYS, making forward
+consensus permanently unavailable for the primary test case. Proposed
+amendment: compare fiscal-quarter identity instead of raw dates —
+`model_label_for_period(history_end) == model_label_for_period(actual_end)`
+— which still refuses genuine quarter mismatches (the actual roll-skew
+failure modes in REVIEW Q4) but tolerates known period-end labeling
+conventions. Codex authored the guard; its ruling governs.
+
+### Fix-loop resolution (2026-07-23) — stage 2b: PASS
+
+Codex `8277469`: py3.10-compatible datetime (verified: no `datetime.UTC`
+remnants); anchor-guard ruling APPROVED and implemented as fiscal-quarter
+identity comparison, with a same-quarter month-end-convention regression
+test. Cowork re-verification (sandbox): **224 passed**, `verify_9q_sha.py`
+exit 0 (sandbox canonical), and the previously-refused NVDA snapshot
+(2026-04-26 vs 2026-04-30) now **MAPS** — forward `2026Q2/2026Q3` revenue+EPS
+populated, annual keys int `2027/2028`, `quality_notes` empty, history
+`2025Q2–2026Q1` and N=4 descriptive consensus skill (−0.5066) unchanged.
+Note: the offline replay required a today-aliased cache copy
+(`yahoo_NVDA_20260723.json`, content = the 2026-07-21 snapshot); the sandbox
+cannot delete it — if a LIVE NVDA run happens on the host on 2026-07-23,
+delete it first, otherwise it is inert from 2026-07-24 onward.
+
+**NVDA-2 status after 2b:** 2a + 2b complete and verified. Remaining: host
+full-companyfacts refetch + reproduction gate (blocks external quoting of
+all NVDA-2 metrics), then the `OperatingIncomeLoss` availability check that
+decides 2c (4-lever once, or defer — no interim 3-lever, per REVIEW Q5).
