@@ -47,3 +47,4 @@ reports/_verify/
 reports/sk_hynix_20*.md
 reports/sk_hynix_20*.png
 !reports/sk_hynix_20260624*
+_to_delete/
