@@ -1093,22 +1093,22 @@
   },
   "consensus": {
     "ticker": "NVDA",
-    "as_of": "2026-07-21",
+    "as_of": "2026-08-05",
     "revenue_estimate_quarterly": {
-      "2026Q2": null,
-      "2026Q3": null
+      "2026Q2": 91846.09824,
+      "2026Q3": 103131.20616
     },
     "eps_estimate_quarterly": {
-      "2026Q2": null,
-      "2026Q3": null
+      "2026Q2": 2.083,
+      "2026Q3": 2.35239
     },
     "revenue_estimate_annual": {
-      "2027": null,
-      "2028": null
+      "2027": 393852.7321,
+      "2028": 561509.43987
     },
     "eps_estimate_annual": {
-      "2027": null,
-      "2028": null
+      "2027": 8.99574,
+      "2028": 12.89043
     },
     "history": {
       "2025Q2": {
@@ -1132,16 +1132,10 @@
         "surprise_pct": 0.0554
       }
     },
-    "notes": [
-      "latest earnings_history end 2026-04-30 != latest actual period_end 2026-04-26; forward consensus anchor refused",
-      "quarterly revenue consensus unavailable",
-      "quarterly EPS consensus unavailable"
-    ],
-    "quality_notes": [
-      "latest earnings_history end 2026-04-30 != latest actual period_end 2026-04-26; forward consensus anchor refused"
-    ]
+    "notes": [],
+    "quality_notes": []
   },
-  "consensus_fetch_timestamp": "2026-07-21T13:26:34.474212+00:00",
+  "consensus_fetch_timestamp": "2026-08-04T15:36:22.514459+00:00",
   "signal": {
     "bvt_independent": true,
     "skill": {

@@ -8,26 +8,35 @@
 
 | 분기 | 매출 | 영업이익 | 순이익 | EPS(희석) |
 |---|---:|---:|---:|---:|
-| 2026Q2 | 21,268 | 1,349 | 1,424 | 0.40 |
-| 2026Q3 | 22,359 | 1,437 | 1,514 | 0.43 |
-| 2026Q4 | 24,204 | 1,575 | 1,656 | 0.47 |
-| 2027Q1 | 26,713 | 1,759 | 1,847 | 0.52 |
+| 2026Q2 | 26,808 | 1,697 | 1,490 | 0.42 |
+| 2026Q3 | 28,180 | 1,807 | 1,594 | 0.45 |
+| 2026Q4 | 30,500 | 1,981 | 1,755 | 0.50 |
+| 2027Q1 | 27,556 | 1,816 | 1,617 | 0.46 |
 
 ## 연간 EPS (시나리오별)
 
 | FY | Bear | Base | Bull | 가중 |
 |---|---:|---:|---:|---:|
-| 2026 | 0.64 | 1.22 | 2.12 | 1.30 |
-| 2027 | 0.23 | 0.48 | 0.90 | 0.52 |
+| 2026 | 0.36 | 1.23 | 2.65 | 1.37 |
+| 2027 | 0.10 | 0.40 | 0.93 | 0.46 |
 
 ## 오프라인 백테스트 (1-step, seasonally-aware)
 
-- **Post-break (headline)** · N=12 (EPS 12) · 매출 MAPE 11.7% / bias +5.5% · EPS MAPE 71.9% / bias +43.0%
-  - RW MAPE 매출 12.4% / EPS 123.0% · MASE 매출 0.949 / EPS 0.665 · Theil U2 매출 0.935 / EPS 0.712 · consensus N=0
-- **Full window** · N=26 (EPS 26) · 매출 MAPE 10.8% / bias +0.0% · EPS MAPE 196.4% / bias +150.5%
-  - RW MAPE 매출 13.2% / EPS 101.4% · MASE 매출 0.846 / EPS 0.991 · Theil U2 매출 0.874 / EPS 0.829 · consensus N=0
-- **Pre-break** · N=14 (EPS 14) · 매출 MAPE 10.0% / bias -4.6% · EPS MAPE 303.1% / bias +242.6%
-  - RW MAPE 매출 13.8% / EPS 82.9% · MASE 매출 0.708 / EPS 1.830 · Theil U2 매출 0.737 / EPS 1.827 · consensus N=0
+- **Post-break (headline)** · N=12 (EPS 12) · 매출 MAPE 7.7% / bias +1.5% · EPS MAPE 53.2% / bias -18.9%
+  - RW MAPE 매출 12.4% / EPS 123.0% · MASE 매출 0.643 / EPS 0.780 · Theil U2 매출 0.641 / EPS 0.802 · consensus N=3
+- **Full window** · N=26 (EPS 26) · 매출 MAPE 11.6% / bias -3.8% · EPS MAPE 121.1% / bias +40.1%
+  - RW MAPE 매출 13.2% / EPS 101.4% · MASE 매출 0.862 / EPS 1.178 · Theil U2 매출 0.841 / EPS 0.977 · consensus N=3
+- **Pre-break** · N=14 (EPS 14) · 매출 MAPE 14.9% / bias -8.4% · EPS MAPE 179.4% / bias +90.6%
+  - RW MAPE 매출 13.8% / EPS 82.9% · MASE 매출 1.152 / EPS 2.204 · Theil U2 매출 1.140 / EPS 2.350 · consensus N=0
+
+## Yahoo consensus (fiscal-aware)
+
+- snapshot as-of: 2026-08-05
+- 2026Q2: revenue N/A · EPS N/A
+- 2026Q3: revenue N/A · EPS N/A
+- FY2026: revenue N/A · EPS N/A
+- FY2027: revenue N/A · EPS N/A
+- quality: latest earnings_history end 2026-06-30 != latest actual period_end 2026-03-31; forward consensus anchor refused
 
 ## 데이터 출처 / 주의
 

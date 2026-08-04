@@ -31,12 +31,11 @@
 
 ## Yahoo consensus (fiscal-aware)
 
-- snapshot as-of: 2026-07-21
-- 2026Q2: revenue N/A · EPS N/A
-- 2026Q3: revenue N/A · EPS N/A
-- FY2027: revenue N/A · EPS N/A
-- FY2028: revenue N/A · EPS N/A
-- quality: latest earnings_history end 2026-04-30 != latest actual period_end 2026-04-26; forward consensus anchor refused
+- snapshot as-of: 2026-08-05
+- 2026Q2: revenue 91,846.10 · EPS 2.08
+- 2026Q3: revenue 103,131.21 · EPS 2.35
+- FY2027: revenue 393,852.73 · EPS 9.00
+- FY2028: revenue 561,509.44 · EPS 12.89
 
 ## 데이터 출처 / 주의
 
