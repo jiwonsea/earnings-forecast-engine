@@ -48,6 +48,7 @@
 2. `resolve(inputs, policy, as_of=freeze_scheduled_for)`를 **두 번** 실행해 출력이 바이트 동일한지 확인(비동일 → `NONDETERMINISTIC`, 중단).
 3. 레인 3종 생성: `machine_base`(오버레이 전무) / `machine_overlay_approved`(`approved: true`만) / `machine_overlay_proposed`(승인+미승인). 해당 오버레이가 없으면 그 레인은 생략. **`machine_base`는 어떤 경우에도 오버레이 영향을 받지 않는다.**
 4. FROZEN 작성 — 헤더에 `resolver_version`·`policy_sha`·`inputs_sha`·`overlays_sha`·`code_commit`·`as_of`·`canonicalizer_version`·Python 버전. 본문에 필드별 `rule_id`·표본기간·산식.
+   - **FROZEN 파일은 freeze 후 어떤 편집도 금지. 정정·보완은 `*_errata.md` 형제 파일로.**
 5. walk-forward backtest 결과 첨부. 스킬 게이트 미달이어도 **동결은 수행**하되 헤더에 `LOW_SKILL` 표기(채점 대상이므로 회피 금지).
 6. `reports/frozen/<lane>/<event_key>.md` 커밋 → **push**(PAT) → `git fetch` 후 **`git merge-base --is-ancestor <sha> origin/<branch>`로 원격 수신 확인** → `remote_observed_at`(UTC) 기록.
    - `push_status=OK` + ancestry true + `remote_observed_at < announcement_at_utc` → **`FREEZE_PROVEN`**
