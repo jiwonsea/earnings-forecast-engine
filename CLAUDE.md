@@ -74,6 +74,7 @@ Updated 2026-07-03 (post opex fix + 2026Q1 window extension + seed-implied share
 
 ## Verification
 - `pytest -q` — per-engine unit tests.
+- `python scripts/verify_anchor.py` — offline G1 gate: reproduce active forward anchors with zero network calls, then verify the canonical 9Q SHA.
 - `python cli.py --company sk_hynix --dry-run` — offline report from fixtures.
 - `python cli.py --company sk_hynix` — live pull, inspect HTML (run on host if sandbox network is blocked).
 - 9Q backtest MAPE: revisit assumptions if revenue > 10% or EPS > 25%.
