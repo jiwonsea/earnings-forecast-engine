@@ -16,21 +16,22 @@ import html
 import json
 from pathlib import Path
 
-from schemas.models import (
-    BacktestResult,
-    BacktestSkill,
-    ConsensusGap,
-    DriverAttribution,
-    EpsRiskBand,
-    ScenarioTree,
-    ValuationBridgeResult,
-)
 from output.plotly_charts import (
     build_attribution_waterfall,
     build_beat_miss_bar,
     build_eps_risk_band_chart,
     build_fan_chart,
     build_scenario_compare,
+)
+from schemas.models import (
+    BacktestResult,
+    BacktestSkill,
+    BelowOpEventScenario,
+    ConsensusGap,
+    DriverAttribution,
+    EpsRiskBand,
+    ScenarioTree,
+    ValuationBridgeResult,
 )
 
 
@@ -143,7 +144,11 @@ def _attribution_html(attributions: list[DriverAttribution]) -> str:
 <table><thead><tr><th>분기</th><th>EPS 오차</th><th>매출</th><th>매출총이익률</th><th>opex 전환</th><th>세금·금융</th><th>주식수</th></tr></thead><tbody>{rows}</tbody></table>"""
 
 
-def _valuation_html(v: ValuationBridgeResult) -> str:
+def _valuation_html(
+    v: ValuationBridgeResult,
+    *,
+    below_op_events_present: bool = False,
+) -> str:
     """Valuation-bridge section: EPS-gap fair-value delta + separate overlay score."""
     def pct(x: float | None) -> str:
         return "—" if x is None else f"{x:+.1%}"
@@ -153,8 +158,13 @@ def _valuation_html(v: ValuationBridgeResult) -> str:
         band = f" (밴드 {pct(v.fair_value_delta_low)} ~ {pct(v.fair_value_delta_high)})"
     note = f"<p><small>{html.escape(v.note)}</small></p>" if v.note else ""
     cons = "—" if v.consensus_eps_fy is None else f"{v.consensus_eps_fy:,.0f}"
+    event_note = (
+        " 원래 base/weighted EPS 점추정만 사용하며 이벤트 조정 EPS는 절대 주입하지 않음."
+        if below_op_events_present
+        else ""
+    )
     return f"""<h2>밸류에이션 브리지 (FY{str(v.fiscal_year)[-2:]})</h2>
-<p><small>EPS gap(모델 vs 컨센) × 탄력도 {v.elasticity:g} → 공정가치 delta. overlay 매크로 리스크는 별도 레이어 — EPS·공정가치 delta 점값에 미반영. 탄력도는 BVT sensitivity로 확정할 draft.</small></p>
+<p><small>EPS gap(모델 vs 컨센) × 탄력도 {v.elasticity:g} → 공정가치 delta.{event_note} overlay 매크로 리스크는 별도 레이어 — EPS·공정가치 delta 점값에 미반영. 탄력도는 BVT sensitivity로 확정할 draft.</small></p>
 <table><thead><tr><th>지표</th><th>값</th></tr></thead><tbody>
 <tr><td>모델 FY EPS</td><td>{v.model_eps_fy:,.0f}</td></tr>
 <tr><td>컨센서스 FY EPS</td><td>{cons}</td></tr>
@@ -163,6 +173,39 @@ def _valuation_html(v: ValuationBridgeResult) -> str:
 <tr><td>overlay 리스크 점수 (매크로, 별도)</td><td>{v.overlay_risk_score:+.3f} (n={len(v.overlays)})</td></tr>
 </tbody></table>
 {note}"""
+
+
+def _below_op_event_html(scenario: BelowOpEventScenario) -> str:
+    """Output-only below-OP event EPS scenario and audit register."""
+    quarter_rows = "\n".join(
+        "\n".join(
+            (
+                f"<tr><td>{html.escape(q.period_label)}</td><td>미발생</td><td>0</td><td>{q.eps_no_event:,.0f}</td></tr>",
+                f"<tr><td>{html.escape(q.period_label)}</td><td>발생</td><td>1</td><td>{q.eps_if_realized:,.0f}</td></tr>",
+                f"<tr><td>{html.escape(q.period_label)}</td><td>기대값</td><td>{sum(e.probability for e in q.events) / len(q.events):.0%}</td><td>{q.eps_expected:,.0f}</td></tr>",
+            )
+        )
+        for q in scenario.quarters
+    )
+    event_rows = "\n".join(
+        "<tr>"
+        f"<td>{html.escape(e.id)}</td><td>{e.as_of_date}</td><td>{e.amount_as_of}</td>"
+        f"<td>{html.escape(e.target_period_label)}</td><td>{html.escape(e.kind)}</td><td>{html.escape(e.basis)}</td>"
+        f"<td>{e.amount_krw_bn:,.0f}</td><td>{e.probability:.0%}</td>"
+        f"<td>{html.escape(e.confidence)}</td><td>{html.escape(e.source)}</td></tr>"
+        for e in scenario.events
+    )
+    event_notes = "".join(
+        f"<p><small>{html.escape(e.id)}: 존재는 {e.as_of_date}부터, 금액은 {e.amount_as_of}부터 인지 가능. "
+        f"{html.escape(e.note)}<br>Revision trigger: {html.escape(e.revision_trigger)}</small></p>"
+        for e in scenario.events
+    )
+    return f"""<h2>Below-OP 이벤트 조정 EPS (별도 시나리오)</h2>
+<p><small>기본 EPS 점추정은 불변이다. 확률은 통계 추정치가 아닌 판단값이며 기대값은 실현 불가능한 중간값이다.<br>
+밴드와 이벤트는 근사적으로 분리된다. 기존 8Q 밴드 표본에는 이상치가 포함되어 있으나 MAD가 그 기여를 제한한다. 잔여 중복은 0이 아니며 정량화하지 않는다.</small></p>
+<table><thead><tr><th>분기</th><th>시나리오</th><th>확률</th><th>EPS</th></tr></thead><tbody>{quarter_rows}</tbody></table>
+<table><thead><tr><th>ID</th><th>존재 As-of</th><th>금액 As-of</th><th>Target</th><th>Kind</th><th>Basis</th><th>금액 (KRW bn)</th><th>Probability</th><th>Confidence</th><th>Source</th></tr></thead><tbody>{event_rows}</tbody></table>
+{event_notes}"""
 
 
 def render_html_report(
@@ -174,6 +217,7 @@ def render_html_report(
     inline_plotly: bool = False,
     risk_band: EpsRiskBand | None = None,
     valuation: ValuationBridgeResult | None = None,
+    below_op_event_scenario: BelowOpEventScenario | None = None,
     attributions: list[DriverAttribution] | None = None,
 ) -> Path:
     """Render the full HTML report to out_path.
@@ -211,7 +255,19 @@ def render_html_report(
     beat = json.dumps(build_beat_miss_bar(backtest))
     compare = json.dumps(build_scenario_compare(tree))
     risk_band_section = _risk_band_html(risk_band) if risk_band is not None else ""
-    valuation_section = _valuation_html(valuation) if valuation is not None else ""
+    valuation_section = (
+        _valuation_html(
+            valuation,
+            below_op_events_present=below_op_event_scenario is not None,
+        )
+        if valuation is not None
+        else ""
+    )
+    below_op_event_section = (
+        _below_op_event_html(below_op_event_scenario)
+        if below_op_event_scenario is not None
+        else ""
+    )
     eps_band_json = json.dumps(build_eps_risk_band_chart(risk_band)) if risk_band is not None else "null"
     eps_band_script = (
         f"const epsband={eps_band_json};Plotly.newPlot('epsband',epsband.data,epsband.layout);"
@@ -274,6 +330,7 @@ def render_html_report(
 {warning_html}
 <h2>Forecast</h2><div id="fan"></div><div id="compare"></div>
 {risk_band_section}
+{below_op_event_section}
 {valuation_section}
 <h2>Consensus Gap</h2><table><thead><tr><th>Period</th><th>Metric</th><th>Model</th><th>Consensus</th><th>Gap</th><th>Direction</th><th>Interpretation</th></tr></thead><tbody>{gap_rows}</tbody></table>
 <h2>Backtest</h2><div id="beat"></div><table><thead><tr><th>Quarter</th><th>Actual Rev</th><th>Model Rev</th><th>Rev Err</th><th>Actual EPS</th><th>Model EPS</th><th>EPS Err</th><th>Direction</th></tr></thead><tbody>{backtest_rows}</tbody></table>

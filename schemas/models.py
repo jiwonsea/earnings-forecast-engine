@@ -599,6 +599,69 @@ class EpsRiskBand(BaseModel):
     seam_note: str = ""              # documents the overlay -> valuation/DCF seam
 
 
+class BelowOpEvent(BaseModel):
+    """Identified, lookahead-safe below-OP event for an optional EPS scenario.
+
+    ``as_of_date`` is when the event's existence became knowable;
+    ``amount_as_of`` is the separate date when its numeric amount became knowable.
+    ``probability`` is a judgment input, not a statistically estimated frequency.
+    Events are approximately separated from the existing 8Q MAD risk band: that
+    sample already contains outliers, whose contribution MAD limits but does not
+    eliminate. Residual overlap is non-zero and is not quantified.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    as_of_date: date
+    amount_as_of: date
+    target_period_label: str
+    kind: str
+    amount_krw_bn: float
+    basis: Literal["pre_tax", "after_tax", "net_income_level"]
+    probability: float = Field(..., ge=0.0, le=1.0)
+    confidence: Literal["estimated", "confirmed"]
+    source: str
+    note: str = ""
+    revision_trigger: str = ""
+
+    @model_validator(mode="after")
+    def _reject_lookahead(self) -> BelowOpEvent:
+        period_end = quarter_period_end(self.target_period_label)
+        if self.as_of_date >= period_end:
+            raise ValueError(
+                f"below_op_event as_of_date {self.as_of_date} must be before the target "
+                f"period_end {period_end} ({self.target_period_label}) — lookahead"
+            )
+        if self.amount_as_of < self.as_of_date:
+            raise ValueError(
+                f"below_op_event amount_as_of {self.amount_as_of} cannot precede "
+                f"existence as_of_date {self.as_of_date}"
+            )
+        return self
+
+
+class EventAdjustedEpsQuarter(BaseModel):
+    """No-event, realized-event, and judgment-weighted expected EPS views."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    period_label: str
+    eps_no_event: float
+    eps_if_realized: float
+    eps_expected: float
+    events: list[BelowOpEvent]
+
+
+class BelowOpEventScenario(BaseModel):
+    """Output-only event-adjusted EPS scenario; never replaces forecast EPS."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    quarters: list[EventAdjustedEpsQuarter]
+    events: list[BelowOpEvent]
+
+
 class ValuationBridgeResult(BaseModel):
     """Forecast EPS -> fair-value sensitivity, plus the macro overlay/risk layer.
 
@@ -608,7 +671,9 @@ class ValuationBridgeResult(BaseModel):
       - Layer 2 (macro): ``overlay_risk_score`` from date-tagged overlays — an
         entry-timing/risk signal that is NEVER folded into the layer-1 delta.
 
-    Read-only over ScenarioTree; forecast EPS is unaffected.
+    Read-only over ScenarioTree; forecast EPS is unaffected. Event-adjusted EPS
+    scenarios are deliberately not accepted here: layer 1 always uses the original
+    base/weighted point estimate so one-off gains cannot flow into fair value.
     """
 
     model_config = ConfigDict(extra="forbid")

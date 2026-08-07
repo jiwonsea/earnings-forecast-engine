@@ -12,6 +12,7 @@ import yaml
 
 from schemas.models import (
     AnchorMargins,
+    BelowOpEvent,
     CompanyMeta,
     FinanceAssumptions,
     HistoricalDriver,
@@ -41,6 +42,7 @@ def load_profile(profile_path: Path) -> dict:
                             "base": ..., "bull": ...}
             - "overlays": list[Overlay] (date-tagged risk overlays; may be empty)
             - "risk_band": dict | None (below-OP EPS band config; engine.risk_band consumes)
+            - "below_op_events": list[BelowOpEvent] (output-only EPS scenarios)
             - "valuation": ValuationConfig | None (validated; engine.valuation_bridge consumes)
             - "raw": original YAML dict (for archival in reports)
 
@@ -104,6 +106,9 @@ def load_profile(profile_path: Path) -> dict:
     # construction; valuation is validated into a typed config (non-negative
     # bounds, extra=forbid) so bad YAML fails at load; risk_band stays a raw dict.
     overlays = [Overlay.model_validate(item) for item in raw.get("overlays", [])]
+    below_op_events = [
+        BelowOpEvent.model_validate(item) for item in raw.get("below_op_events", [])
+    ]
     risk_band = raw.get("risk_band")
     valuation_raw = raw.get("valuation")
     valuation = ValuationConfig.model_validate(valuation_raw) if valuation_raw is not None else None
@@ -120,6 +125,7 @@ def load_profile(profile_path: Path) -> dict:
         "rationales": rationales,
         "scenarios": scenarios,
         "overlays": overlays,
+        "below_op_events": below_op_events,
         "risk_band": risk_band,
         "valuation": valuation,
         "raw": raw,

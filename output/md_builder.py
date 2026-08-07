@@ -11,6 +11,7 @@ from pathlib import Path
 from schemas.models import (
     BacktestResult,
     BacktestSkill,
+    BelowOpEventScenario,
     ConsensusGap,
     EpsRiskBand,
     ScenarioTree,
@@ -111,7 +112,11 @@ def _risk_band_lines(risk_band: EpsRiskBand) -> list[str]:
     return lines
 
 
-def _valuation_lines(v: ValuationBridgeResult) -> list[str]:
+def _valuation_lines(
+    v: ValuationBridgeResult,
+    *,
+    below_op_events_present: bool = False,
+) -> list[str]:
     """Valuation-bridge section (Korean): EPS-gap fair-value delta + overlay score."""
     def pct(x: float | None) -> str:
         return "—" if x is None else f"{x:+.1%}"
@@ -120,10 +125,15 @@ def _valuation_lines(v: ValuationBridgeResult) -> list[str]:
     if v.fair_value_delta_low is not None and v.fair_value_delta_high is not None:
         band = f" (밴드 {pct(v.fair_value_delta_low)} ~ {pct(v.fair_value_delta_high)})"
     cons = "—" if v.consensus_eps_fy is None else f"{v.consensus_eps_fy:,.0f}"
+    event_note = (
+        " 원래 base/weighted EPS 점추정만 사용하며 이벤트 조정 EPS는 절대 주입하지 않음."
+        if below_op_events_present
+        else ""
+    )
     lines = [
         f"## 밸류에이션 브리지 (FY{str(v.fiscal_year)[-2:]})",
         "",
-        f"> EPS gap(모델 vs 컨센) × 탄력도 {v.elasticity:g} → 공정가치 delta. overlay 매크로 리스크는 별도 레이어 — EPS·공정가치 delta 점값에 미반영. 탄력도는 BVT sensitivity로 확정할 draft.",
+        f"> EPS gap(모델 vs 컨센) × 탄력도 {v.elasticity:g} → 공정가치 delta.{event_note} overlay 매크로 리스크는 별도 레이어 — EPS·공정가치 delta 점값에 미반영. 탄력도는 BVT sensitivity로 확정할 draft.",
         "",
         "| 지표 | 값 |",
         "|---|---:|",
@@ -139,6 +149,45 @@ def _valuation_lines(v: ValuationBridgeResult) -> list[str]:
     return lines
 
 
+def _below_op_event_lines(scenario: BelowOpEventScenario) -> list[str]:
+    """Output-only event-adjusted EPS scenario and audit register."""
+    lines = [
+        "## Below-OP 이벤트 조정 EPS (별도 시나리오)",
+        "",
+        "> 기본 EPS 점추정은 불변이다. 확률은 통계 추정치가 아닌 판단값이며 기대값은 실현 불가능한 중간값이다.",
+        "> 밴드와 이벤트는 근사적으로 분리된다. 기존 8Q 밴드 표본에는 이상치가 포함되어 있으나 MAD가 그 기여를 제한한다. 잔여 중복은 0이 아니며 정량화하지 않는다.",
+        "",
+        "| 분기 | 시나리오 | 확률 | EPS |",
+        "|---|---|---:|---:|",
+    ]
+    for q in scenario.quarters:
+        probability = sum(event.probability for event in q.events) / len(q.events)
+        lines += [
+            f"| {q.period_label} | 미발생 | 0 | {q.eps_no_event:,.0f} |",
+            f"| {q.period_label} | 발생 | 1 | {q.eps_if_realized:,.0f} |",
+            f"| {q.period_label} | 기대값 | {probability:.0%} | {q.eps_expected:,.0f} |",
+        ]
+    lines += [
+        "",
+        "| ID | 존재 As-of | 금액 As-of | Target | Kind | Basis | 금액 (KRW bn) | Probability | Confidence | Source |",
+        "|---|---|---|---|---|---|---:|---:|---|---|",
+    ]
+    for event in scenario.events:
+        lines.append(
+            f"| {event.id} | {event.as_of_date} | {event.amount_as_of} | "
+            f"{event.target_period_label} | {event.kind} | {event.basis} | "
+            f"{event.amount_krw_bn:,.0f} | {event.probability:.0%} | "
+            f"{event.confidence} | {event.source} |"
+        )
+        lines += [
+            "",
+            f"> {event.id}: 존재는 {event.as_of_date}부터, 금액은 {event.amount_as_of}부터 인지 가능. {event.note}",
+            f"> Revision trigger: {event.revision_trigger}",
+        ]
+    lines.append("")
+    return lines
+
+
 def render_md_report(
     out_path: Path,
     tree: ScenarioTree,
@@ -149,6 +198,7 @@ def render_md_report(
     consensus_notes: list[str] | None = None,
     risk_band: EpsRiskBand | None = None,
     valuation: ValuationBridgeResult | None = None,
+    below_op_event_scenario: BelowOpEventScenario | None = None,
 ) -> Path:
     """Render the MD summary.
 
@@ -203,8 +253,13 @@ def render_md_report(
         )
     if risk_band is not None:
         lines += [""] + _risk_band_lines(risk_band)
+    if below_op_event_scenario is not None:
+        lines += [""] + _below_op_event_lines(below_op_event_scenario)
     if valuation is not None:
-        lines += [""] + _valuation_lines(valuation)
+        lines += [""] + _valuation_lines(
+            valuation,
+            below_op_events_present=below_op_event_scenario is not None,
+        )
     lines += ["", "## Backtest", ""]
     if png_beat_miss_path is not None:
         lines += [f"![Beat miss chart]({png_beat_miss_path.name})", ""]

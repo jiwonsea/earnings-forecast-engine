@@ -19,9 +19,11 @@ from datetime import date
 
 import pytest
 
+from engine.below_op_events import build_event_adjusted_eps
 from engine.scenario import aggregate_quarterly_to_annual, build_scenario_tree
 from engine.valuation_bridge import sensitivity_to_dcf
 from schemas.models import (
+    BelowOpEvent,
     CompanyMeta,
     Overlay,
     QuarterlyForecast,
@@ -88,6 +90,34 @@ def test_fair_value_delta_is_elasticity_times_eps_gap() -> None:
     assert result.fair_value_delta_pct == pytest.approx(1.2 * 0.25)
 
 
+def test_below_op_events_do_not_change_fair_value_delta() -> None:
+    """A present event scenario must never feed one-off EPS into valuation."""
+    tree = _tree(eps=100.0)
+    before = sensitivity_to_dcf(tree, consensus_eps_fy=80.0, fair_value_elasticity=1.2)
+    event = BelowOpEvent(
+        id="kioxia_spc1_disposal",
+        as_of_date=date(2026, 3, 30),
+        amount_as_of=date(2026, 3, 30),
+        target_period_label="2026Q1",
+        kind="asset_disposal_gain",
+        amount_krw_bn=40_000.0,
+        basis="net_income_level",
+        probability=0.8,
+        confidence="estimated",
+        source="estimate",
+    )
+    event_scenario = build_event_adjusted_eps(
+        [(q.quarter_label, q.eps_basic) for q in tree.weighted_quarterly],
+        800_000_000,
+        [event],
+        calculation_as_of=date(2026, 3, 30),
+    )
+    after = sensitivity_to_dcf(tree, consensus_eps_fy=80.0, fair_value_elasticity=1.2)
+
+    assert event_scenario.quarters[0].eps_expected != tree.weighted_quarterly[0].eps_basic
+    assert after.model_dump() == before.model_dump()
+
+
 def test_missing_consensus_holds_delta() -> None:
     result = sensitivity_to_dcf(_tree(), consensus_eps_fy=None)
     assert result.eps_delta_pct is None
@@ -137,3 +167,12 @@ def test_bridge_does_not_mutate_tree() -> None:
     before = tree.model_dump_json()
     sensitivity_to_dcf(tree, consensus_eps_fy=80.0, overlays=_overlays())
     assert tree.model_dump_json() == before
+
+
+def test_docstring_forbids_event_adjusted_eps_input() -> None:
+    """P2 contract is explicit at the valuation API boundary."""
+    doc = sensitivity_to_dcf.__module__
+    assert doc == "engine.valuation_bridge"
+    module_doc = __import__(doc, fromlist=["__doc__"]).__doc__ or ""
+    assert "event-adjusted EPS" in module_doc
+    assert "never be injected" in module_doc

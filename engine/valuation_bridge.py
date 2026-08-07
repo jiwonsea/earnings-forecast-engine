@@ -17,6 +17,11 @@ PLAN_valuation_bridge.md §3):
 Consensus guard: yfinance .KS consensus can be ~3x broken (HANDOFF_backtest_diag
 §①-B). A missing or caller-flagged-unreliable consensus holds the fair-value delta
 (None + note) rather than emitting garbage.
+
+Below-OP event scenarios are intentionally absent from this API. Layer 1 always
+reads the original ScenarioTree base/weighted EPS point; an event-adjusted EPS
+must never be injected because a one-off gain would be amplified by elasticity
+and incorrectly flow into recurring fair value (HANDOFF §17.2 P2).
 """
 
 from __future__ import annotations
@@ -47,6 +52,10 @@ def sensitivity_to_dcf(
     consensus_reliable: bool = True,
 ) -> ValuationBridgeResult:
     """Compute implied fair-value delta vs consensus + the macro overlay score.
+
+    The bridge deliberately reads the existing weighted point-estimate EPS only.
+    Identified below-OP event scenarios are excluded: a one-time disposal gain
+    must not be amplified by ``fair_value_elasticity`` into recurring fair value.
 
     Args:
         model_tree: Full tree — weighted_annual FY1 EPS is used (read-only).

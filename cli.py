@@ -126,14 +126,15 @@ def main(argv: list[str] | None = None) -> int:
     from dotenv import load_dotenv
 
     from engine.backtest import run_backtest
+    from engine.below_op_events import build_event_adjusted_eps
     from engine.consensus_diff import compute_consensus_gap
     from engine.eps_bridge import project_eps
-    from engine.risk_band import build_eps_risk_band
-    from engine.valuation_bridge import sensitivity_to_dcf
     from engine.margin_model import project_margins
+    from engine.risk_band import build_eps_risk_band
     from engine.scenario import aggregate_quarterly_to_annual, build_scenario_tree
     from engine.segment_revenue import build_margin_carryover, project_quarterly_revenue
     from engine.tax_finance import apply_taxes_and_finance
+    from engine.valuation_bridge import sensitivity_to_dcf
     from output.html_builder import render_html_report
     from output.md_builder import render_md_report
     from output.static_charts import save_beat_miss_png, save_fan_chart_png
@@ -331,10 +332,23 @@ def main(argv: list[str] | None = None) -> int:
             consensus_reliable=(len(consensus.quality_notes) == 0),
         )
 
+    # Identified below-OP events are computed only after valuation, as an
+    # output-only alternative EPS scenario. They never mutate tree and are never
+    # passed to risk_band, backtest, or valuation_bridge.
+    below_op_event_scenario = None
+    if profile.get("below_op_events"):
+        below_op_event_scenario = build_event_adjusted_eps(
+            [(q.quarter_label, q.eps_basic) for q in tree.weighted_quarterly],
+            profile["shares"].weighted_avg_basic,
+            profile["below_op_events"],
+            calculation_as_of=tree.as_of,
+            effective_tax_rate=profile["scenarios"]["base"][2].effective_tax_rate,
+        )
+
     save_fan_chart_png(tree, fan_png_path)
     save_beat_miss_png(backtest, beat_miss_png_path)
-    render_html_report(html_path, tree, gaps, backtest, profile["raw"], args.inline_plotly, risk_band=risk_band, valuation=valuation, attributions=attributions)
-    render_md_report(md_path, tree, gaps, backtest, fan_png_path, beat_miss_png_path, consensus.notes, risk_band=risk_band, valuation=valuation)
+    render_html_report(html_path, tree, gaps, backtest, profile["raw"], args.inline_plotly, risk_band=risk_band, valuation=valuation, below_op_event_scenario=below_op_event_scenario, attributions=attributions)
+    render_md_report(md_path, tree, gaps, backtest, fan_png_path, beat_miss_png_path, consensus.notes, risk_band=risk_band, valuation=valuation, below_op_event_scenario=below_op_event_scenario)
     write_xlsx(xlsx_path, tree, backtest)
 
     logger.info("Wrote %s", html_path)

@@ -246,6 +246,26 @@ risk_band:
   k: 1.5
   half_width_pct: 0.2279
 
+# Identified below-OP events — output-only event-adjusted EPS scenarios. The EPS
+# point estimate, risk_band, backtest, and valuation bridge remain unchanged.
+# probability is an analyst judgment, not a statistically estimated frequency.
+# The event layer and 8Q MAD band are only approximately separated: the band
+# sample contains outliers, MAD limits but does not remove their contribution,
+# residual overlap is non-zero, and it is not quantified.
+below_op_events:
+  - id: "kioxia_spc1_disposal"
+    as_of_date: "2026-06-24"
+    amount_as_of: "2026-07-28"
+    target_period_label: "2026Q2"
+    kind: "asset_disposal_gain"
+    amount_krw_bn: 40000
+    basis: "net_income_level"
+    probability: 0.8
+    confidence: "estimated"
+    source: "KRX disclosure 2026-06-24 (event); Meritz Securities estimate 2026-07-28 (amount)"
+    note: "The source calls it non-operating profit, implying pre-tax, but tax treatment is unconfirmed. The event explains about 91% of the KRW 44,097.7bn actual NI gap; the residual is about KRW 4,098bn from other below-OP items and the OP miss."
+    revision_trigger: "2026 half-year report — revisit basis and amount when tax treatment is confirmed"
+
 # Point-in-time macro / timing / risk overlays (date-tagged, lookahead-safe).
 # 2층 분리: overlay는 valuation·entry·risk 레이어만 먹이고 EPS 점추정엔 절대 미주입.
 # magnitude = valuation/risk-layer 단위(공정가치 분율 또는 risk-band 가중), EPS 분율 아님.
