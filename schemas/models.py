@@ -613,6 +613,7 @@ class BelowOpEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
+    instrument: str | None = None
     as_of_date: date
     amount_as_of: date
     target_period_label: str
@@ -639,6 +640,25 @@ class BelowOpEvent(BaseModel):
                 f"existence as_of_date {self.as_of_date}"
             )
         return self
+
+
+class RecurringFairValueBlock(BaseModel):
+    """Disclosure-only registry entry for a recurring fair-value exposure.
+
+    The model deliberately has no fair-value gain/loss or EPS field. Carrying
+    value documents exposure size; it is not injected into forecast outputs.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    instrument: str
+    accounting_basis: Literal["FVPL", "FVOCI", "equity_method"]
+    carrying_value: int = Field(..., ge=0)
+    carrying_value_as_of: date
+    observable_proxy: str | None = None
+    sensitivity: float | None = None
+    confidence: Literal["confirmed", "estimated"]
+    source: str
 
 
 class EventAdjustedEpsQuarter(BaseModel):

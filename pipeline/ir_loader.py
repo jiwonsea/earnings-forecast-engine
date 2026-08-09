@@ -13,6 +13,7 @@ import yaml
 from schemas.models import (
     AnchorMargins,
     BelowOpEvent,
+    RecurringFairValueBlock,
     CompanyMeta,
     FinanceAssumptions,
     HistoricalDriver,
@@ -109,6 +110,20 @@ def load_profile(profile_path: Path) -> dict:
     below_op_events = [
         BelowOpEvent.model_validate(item) for item in raw.get("below_op_events", [])
     ]
+    recurring_fair_value_blocks = [
+        RecurringFairValueBlock.model_validate(item)
+        for item in raw.get("recurring_fair_value_blocks", [])
+    ]
+    event_instruments = {
+        event.instrument for event in below_op_events if event.instrument is not None
+    }
+    recurring_instruments = {block.instrument for block in recurring_fair_value_blocks}
+    duplicates = event_instruments & recurring_instruments
+    if duplicates:
+        raise ValueError(
+            "instruments cannot be registered as both BelowOpEvent and "
+            f"RecurringFairValueBlock: {', '.join(sorted(duplicates))}"
+        )
     risk_band = raw.get("risk_band")
     valuation_raw = raw.get("valuation")
     valuation = ValuationConfig.model_validate(valuation_raw) if valuation_raw is not None else None
@@ -126,6 +141,7 @@ def load_profile(profile_path: Path) -> dict:
         "scenarios": scenarios,
         "overlays": overlays,
         "below_op_events": below_op_events,
+        "recurring_fair_value_blocks": recurring_fair_value_blocks,
         "risk_band": risk_band,
         "valuation": valuation,
         "raw": raw,
