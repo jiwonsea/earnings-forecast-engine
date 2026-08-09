@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from engine.generic_postmortem import score_generic_release
+from engine.scoring_basis import compare_bases, format_gap_of_gap
 from schemas.postmortem import FrozenPoint, GenericActualRelease, GenericPostmortemResult
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,15 @@ def render_postmortem(result: GenericPostmortemResult) -> str:
         result.eps_weighted.actual,
         FROZEN_ANCHOR["consensus"]["ir"]["gaap_eps"],
     )
+    basis_comparison = compare_bases(
+        base={"revenue": result.revenue_base.forecast, "eps": result.eps_base.forecast},
+        weighted={"revenue": result.revenue_weighted.forecast, "eps": result.eps_weighted.forecast},
+        actual={"revenue": result.revenue_base.actual, "eps": result.eps_base.actual},
+        consensus={
+            "revenue": FROZEN_ANCHOR["consensus"]["ir"]["revenue_total"],
+            "eps": FROZEN_ANCHOR["consensus"]["ir"]["gaap_eps"],
+        },
+    )
     lines = [
         START_MARKER,
         "### TSLA Q2 2026 사후 채점",
@@ -114,6 +124,7 @@ def render_postmortem(result: GenericPostmortemResult) -> str:
         f"- 매출 weighted MAPE/bias: {_pct(result.revenue_weighted.mape)} / {_pct(result.revenue_weighted.bias)}",
         f"- GAAP EPS base MAPE/bias: {_pct(result.eps_base.mape)} / {_pct(result.eps_base.bias)}",
         f"- GAAP EPS weighted MAPE/bias: {_pct(result.eps_weighted.mape)} / {_pct(result.eps_weighted.bias)}",
+        *format_gap_of_gap(basis_comparison),
         "",
         "#### 4-lever EPS 오차 귀인",
         "",

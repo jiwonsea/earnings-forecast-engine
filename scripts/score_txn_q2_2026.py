@@ -30,6 +30,7 @@ sys.path.insert(0, str(REPO))
 
 from generic_cli import load_generic_profile  # noqa: E402
 from engine.generic_forecast import run_generic_forecast  # noqa: E402
+from engine.scoring_basis import compare_bases, format_gap_of_gap  # noqa: E402
 
 # ──────────────────────────────────────────────────────────────────────────
 # ACTUALS — 프린트 시 채운다 (USD_million; EPS는 USD/주; 마진·세율은 소수, 예: 0.585).
@@ -245,9 +246,17 @@ def score_swings(a: dict, f: dict, lines: list[str]) -> None:
 
 
 def build_scorecard(a: dict, f: dict) -> str:
+    basis_comparison = compare_bases(
+        base={"revenue": f["base"]["rev"], "eps": f["base"]["eps"]},
+        weighted={"revenue": f["weighted"]["rev"], "eps": f["weighted"]["eps"]},
+        actual={"revenue": a["q2_revenue"], "eps": a["q2_eps_diluted"]},
+        consensus={"revenue": CONSENSUS_Q2_REV, "eps": CONSENSUS_Q2_EPS},
+    )
     lines = [f"# TXN {f['label']} 사후 채점 (SCORED)", "",
              "> 동결 예측(FROZEN, commit e66bee5) ↔ 실제 대조. 채점은 '사후 귀인 — 예측 신호 아님'.",
              f"> 실제 출처: {a.get('q2_source') or '(미기재)'}", ""]
+    lines.extend(format_gap_of_gap(basis_comparison))
+    lines.append("")
     score_point(a, f, lines)
     score_consensus(a, lines)
     score_four_lever(a, f, lines)

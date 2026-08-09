@@ -13,6 +13,8 @@ from pathlib import Path
 import yaml
 from openpyxl import load_workbook
 
+from engine.scoring_basis import compare_bases, format_gap_of_gap
+
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -31,6 +33,11 @@ class Point:
     operating_profit: float
     net_income: float
     eps: float
+
+
+# Frozen base row transcribed from the 2026-07-10 scorecard; the workbook's
+# scenarios sheet retains only base revenue, while the weighted row is complete.
+BASE_ANCHOR = Point(79_070.26666360501, 61_972.0, 51_280.0, 72_669.0)
 
 
 @dataclass(frozen=True)
@@ -152,6 +159,13 @@ def render(model: Point, actual: Point, attribution: Attribution) -> str:
     def pct(value: float) -> str:
         return f"{value * 100:+.4f}%"
 
+    basis_comparison = compare_bases(
+        base={"revenue": BASE_ANCHOR.revenue, "operating_profit": BASE_ANCHOR.operating_profit},
+        weighted={"revenue": model.revenue, "operating_profit": model.operating_profit},
+        actual={"revenue": actual.revenue, "operating_profit": actual.operating_profit},
+        consensus={"revenue": 83_646.0, "operating_profit": 63_659.4},
+    )
+
     return "\n".join(
         [
             START_MARKER,
@@ -165,6 +179,12 @@ def render(model: Point, actual: Point, attribution: Attribution) -> str:
             f"| 영업이익 (KRW bn) | {model.operating_profit:,.2f} | {actual.operating_profit:,.1f} | {pct((model.operating_profit - actual.operating_profit) / actual.operating_profit)} |",
             f"| 순이익 (KRW bn) | {model.net_income:,.2f} | {actual.net_income:,.1f} | {pct((model.net_income - actual.net_income) / actual.net_income)} |",
             f"| EPS (KRW) | {model.eps:,.2f} | {actual.eps:,.2f} | {pct(attribution.total)} |",
+            "",
+            "| basis | revenue forecast | revenue error | OP forecast | OP error |",
+            "|---|---:|---:|---:|---:|",
+            f"| base | {BASE_ANCHOR.revenue:,.2f} | {pct((BASE_ANCHOR.revenue - actual.revenue) / actual.revenue)} | {BASE_ANCHOR.operating_profit:,.2f} | {pct((BASE_ANCHOR.operating_profit - actual.operating_profit) / actual.operating_profit)} |",
+            f"| weighted | {model.revenue:,.2f} | {pct((model.revenue - actual.revenue) / actual.revenue)} | {model.operating_profit:,.2f} | {pct((model.operating_profit - actual.operating_profit) / actual.operating_profit)} |",
+            *format_gap_of_gap(basis_comparison),
             "",
             "### 4레버 축약 EPS 오차 귀인",
             "",
