@@ -113,9 +113,108 @@ Helios/MI450 수주 정량 / **워런트 회계처리** / 메모리 원가 전�
 
 ## §4 [발표 후] actual + 4-lever 귀인 + MASE/Theil + surprise
 
-> **미작성 — 발표 전 동결 문서.** 발표 후 별도 세션에서 채운다.
-> 채점 규약: `actual_source_stage: press_release`(1차) → 10-Q(2차). **4-lever generic 귀인(매출 / 영업이익률 / OP→NI / 주식수), 잔차 0 확인.** 5-lever 메모리 버전 재사용 금지. 컨센 서프라이즈는 `HIT` / `MISS` / `NO_SURPRISE` 3값. **기준 혼용 금지**(컨센 비교는 non-GAAP끼리).
-> 추가 채점 항목 2개: **(1) §3 (a) A/B — R2(below-OP=0)가 실제 편향을 만들었는가**, **(2) §3 (c) 주가 방향 주장 — Q2 비트 + Q3 가이던스 인라인 → 하락**.
+**채점 규약 (마커 밖 — 스코어카드가 덮어써도 남는다):**
+`actual_source_stage: press_release`(1차) → `10q`(2차)를 **입력 파일의 필수 필드로 기계 검증**한다. **4-lever generic 귀인(매출 / 영업이익률 / OP→NI / 주식수)** — 단 잔차 0은 대수적으로 보장되므로 정확성의 증거가 아니다. 전사 정확성은 **원문 손익 항등식**(`OP + below-OP = 세전`, `세전 − 세금 + 지분법 + 중단영업 = 순이익`, `순이익 ÷ 희석주식수 ≈ EPS`)으로 검증하며 실패 시 fail-closed다. 5-lever 메모리 버전 재사용 금지. 컨센 서프라이즈는 `HIT` / `MISS` / `NO_SURPRISE` 3값, **기준 혼용 금지**(컨센 비교는 non-GAAP끼리).
+추가 채점 항목 2개: **(1) §3 (a) A/B — R2(below-OP=0)가 실제 편향을 만들었는가**, **(2) §3 (c) 주가 방향 주장 — Q2 비트 + Q3 가이던스 인라인 → 하락.** (2)의 측정 기준은 **발표일 정규장 종가 → 익영업일 정규장 종가**로 발표 전에 고정했다(시간외·프리마켓 제외).
+
+실행: `python -m scripts.score_amd_q2_2026 --actual inputs/amd_q2_2026_actual.filled.yaml --write-handoff`
+스코어카드는 아래 마커 사이를 **교체**한다(마커가 없으면 스크립트가 거부한다 — 추가 모드는 "미작성"과 결과가 공존하는 자기모순 문서를 만든다).
+
+<!-- AMD_Q2_2026_POSTMORTEM_START -->
+
+## §4 사후 채점 — AMD 2026Q2 (사후 귀인 — 예측 신호 아님)
+
+- actual 출처: `EDGAR 10-Q accession 0000002488-26-000123 (amd-20260627.htm), period ended 2026-06-27, filed 2026-08-05. Notes read via rendered R-files: R19 (Common Stock & SBC / warrants), R20 (Income Taxes), R15+R41 (Financial Instruments). Statement figures cross-checked against the 2026-08-04 IR press release (detail/1295).` · as_of `2026-08-07T15:45:00Z / 2026-08-08 00:45 KST`
+- **`actual_source_stage: 10q`** — 이 스코어카드가 어느 공시 빈티지 기준인지의 기계 검증값
+- FROZEN sha256 검증: `9b49506dd36ef0994337242118e0c61e18706e4257da25168579ad13ce9a887e` (불변 확인)
+
+### 원문 손익 항등식 검증 (4-lever 잔차와 별개 — 전사 오류를 잡는 유일한 관문)
+
+| 항등식 | 좌변 | 우변 | 차이 | 판정 |
+|---|---:|---:|---:|:--:|
+| OP + below-OP = 세전이익 | 2,551.0 | 2,551.0 | 0.0 | ✅ |
+| 세전 − 법인세 + 지분법 + 중단영업 = 순이익 | 2,297.0 | 2,297.0 | 0.0 | ✅ |
+| 순이익 ÷ 희석주식수 = 희석 EPS | 1.3846 | 1.3800 | 0.0046 | ✅ |
+
+- 검증 3건 · 미입력 0건 · 종합 ✅ (허용 오차 ±2$M / EPS ±0.01)
+
+### 4-lever generic 귀인 (base 기준)
+
+| 레버 | EPS 기여 |
+|---|---:|
+| 매출 | +0.0105 |
+| 영업이익률 | +0.0443 |
+| OP→NI | -0.3652 |
+| 주식수 | +0.0054 |
+| **합계 (모델 − actual)** | **-0.3050** |
+| 잔차 | +0.000000 |
+
+> 잔차 0은 **대수적으로 보장**되므로 정확성의 증거가 아니다. 전사 정확성의 근거는 위 항등식 표다.
+
+### 포인트 오차
+
+| 지표 | 예측 | actual | MAPE | bias |
+|---|---:|---:|---:|---:|
+| 매출 (base) | 11,650.5 | 11,536.0 | +0.99% | +0.99% |
+| 매출 (확률가중) | 11,600.2 | 11,536.0 | +0.56% | +0.56% |
+| GAAP EPS (base) | 1.0750 | 1.3800 | +22.10% | -22.10% |
+| GAAP EPS (확률가중) | 1.1086 | 1.3800 | +19.67% | -19.67% |
+
+- MASE 매출 0.050 / EPS 0.501 · Theil U2 매출 0.050 / EPS 0.501
+- ⚠ `skill.consensus_*` 필드는 **AMD에서 무효**다(GAAP↔non-GAAP 기준 혼용 방지용 프록시). 컨센 판정은 아래 non-GAAP 표만 인용할 것.
+
+### 컨센서스 서프라이즈 (R5 — non-GAAP끼리만)
+
+| 지표 | 우리 | 컨센 | actual | MAPE | 판정 |
+|---|---:|---:|---:|---:|---|
+| 매출 | 11,650.5 | 11,340.0 | 11,536.0 | +0.99% | **NO_SURPRISE** |
+| non-GAAP EPS | 1.6600 | 1.6100 | 1.6600 | +0.00% | **HIT** |
+
+- 컨센 비교는 non-GAAP끼리만. GAAP EPS는 비교 불가(공표 컨센 없음).
+
+### 세그먼트 매출 오차
+
+| 세그먼트 | 예측 | actual | MAPE | bias |
+|---|---:|---:|---:|---:|
+| data_center | 6,923.0 | 6,718.0 | +3.05% | +3.05% |
+| client | 3,010.0 | 3,062.0 | +1.70% | -1.70% |
+| gaming | 739.0 | 779.0 | +5.13% | -5.13% |
+| embedded | 978.0 | 977.0 | +0.10% | +0.10% |
+
+- 세그먼트 합 11,536.0 vs 연결매출 11,536.0 · 차이 0.0 · ✅
+
+### 세그먼트 영업이익 오차
+
+| 세그먼트 | 예측 | actual | MAPE | bias |
+|---|---:|---:|---:|---:|
+| data_center | 2,112.0 | 2,103.0 | +0.43% | +0.43% |
+| client_and_gaming | 619.0 | 582.0 | +6.36% | +6.36% |
+| embedded | 386.0 | 386.0 | +0.00% | +0.00% |
+
+### 사전등록 A/B — R2(below-OP base 0) 편향 검정
+
+| | EPS | MAPE | bias |
+|---|---:|---:|---:|
+| A. R2 준수 (동결값) | 1.0750 | +22.10% | -22.10% |
+| B. R2-off (중앙값 앵커) | 1.1410 | +17.32% | -17.32% |
+
+- **승자: B** · 실현 below-OP `561.0` · R2 전제(부호 불안정)가 성립했는가: `False`
+
+### (c) Q3 2026 가이던스 예측 채점
+
+- 우리 예측 미드포인트 12,500.0 · actual 13,000.0 · MAPE +3.85%
+- Street 12,500.0 대비 실제 가이던스: **ABOVE** (우리 콜은 `IN_LINE`)
+- non-GAAP GM 가이던스: 우리 +55.00% 대비 actual +56.00%
+
+### (c-2) 주가 방향 주장 채점
+
+- 기준(사전 고정): 발표일 정규장 종가 → 익영업일 정규장 종가 (시간외·프리마켓 제외, 사전 고정)
+- 주장 `down` · 실현 -7.04% · **HIT** · 옵션 내재 밴드(+12.28%) 이내: `True`
+
+<!-- AMD_Q2_2026_POSTMORTEM_END -->
+
+
+
 
 ---
 
@@ -192,3 +291,379 @@ Codex 판정: `revenue_contra_pct` / `incremental_diluted_shares`는 **AMD 전�
 1. HEAD가 `ae3203e`로 이동했으므로 §1의 산출 기준 커밋과 현재 HEAD가 다르다. 사후 채점 세션은 **`ae3203e` 이후 트리**에서 시작할 것.
 2. 본 핸드오프(`HANDOFF_CODEX_efe_2026aug_amd.md`)는 아직 untracked — 호스트에서 커밋 필요.
 3. §5 P0-1(조건부 R2)·P0-2(워런트 필드) 모두 **구현 승인 대기**. 발표 후 §4의 A/B 결과가 P0-1의 판정 근거를 제공한다.
+
+---
+
+## §9 발표 후 판정 — 사전등록 항목별 결론 (2026-08-05 최초 채점, §10에서 `actual_source_stage: 10q`로 갱신)
+
+### 9-1. 한 줄 요약
+
+**non-GAAP EPS는 $1.66으로 동결값과 센트 단위까지 일치했고, GAAP EPS는 22.1% 빗나갔다.** 두 결과가 같은 분기에 나온 이유는 하나다 — **오차 전부가 below-OP + 세율(OP→NI 레버)에 있었고, 영업까지는 정확했다.** non-GAAP은 정의상 그 블록의 영향을 덜 받는다.
+
+### 9-2. 레버별 성적 (오차의 소재)
+
+| 레버 | 예측 | 실제 | 판정 |
+|---|---:|---:|---|
+| 매출 | 11,650.5 | **11,536** | **+0.99%** — 매우 양호 |
+| GAAP OP마진 | 18.00% | **17.25%** | **+0.75pp** — 양호 |
+| non-GAAP OP마진 | 27.23% | 26.82% | +0.41pp |
+| non-GAAP opex | 3,320 | 3,394 | +2.2% |
+| **below-OP** | **0 (R2)** | **+561** | **치명적** |
+| **유효세율** | **15.0%** | **9.88%** | **치명적** |
+| 희석주식수 | 1,658M | 1,659M | +0.06% — 사실상 정확 |
+
+4-lever 귀인: 매출 +0.011 · 영업이익률 +0.044 · **OP→NI −0.365** · 주식수 +0.005 (잔차 0).
+→ **GAAP EPS 오차의 120%가 OP→NI 한 레버에서 나왔다.** 나머지 세 레버는 서로 상쇄하며 +0.06에 그쳤다.
+
+below-OP $561M의 정체: 이자비용 −$37M + 기타수익 +$598M이고, 그중 **장기투자 평가이익이 $483M**이다(보도자료). 즉 영업이 아니라 **투자 포트폴리오 마크**가 GAAP EPS를 만들었다.
+
+### 9-3. 사전등록 항목 채점
+
+| # | 사전등록 내용 | 결과 |
+|---|---|---|
+| (a) 매출 | base 11,650 · 밴드 11,000~12,100 | actual 11,536 — **밴드 내**, MAPE 0.99% |
+| (a) GAAP EPS | base 1.075 · 밴드 0.758~1.526 | actual 1.38 — **밴드 내**, MAPE 22.1% |
+| (a) non-GAAP EPS | base **1.66** | actual **1.66** — **정확 일치** |
+| (d) 매출 vs 컨센 | ABOVE (확신도 중) | actual +1.73% vs 컨센 → **`NO_SURPRISE`** (우리가 사전 정의한 ±2% 밴드 안). 방향은 맞았으나 검정 불가 구간 |
+| (d) non-GAAP EPS vs 컨센 | ABOVE +3.11% | actual +3.11% 상회 → **`HIT`** |
+| (b) 세그먼트 | DC/Client/Gaming/Emb | Emb **+0.10%**, Client −1.70%, DC +3.05%, Gaming −5.13% · 합계 tie-out ✅ |
+| (b) 세그먼트 OP | DC 2,112 / C&G 619 / Emb 386 | DC **+0.43%**, Emb **정확 일치**, C&G +6.36% |
+| (b) non-GAAP GM | 56.5% (가이던스 +50bp) | actual **56%** — 가이던스와 동일, 우리 +50bp는 빗나감 |
+| **(c) Q3 가이던스** | **$12.5B · GM 55%(하향)** | actual **$13.0B · GM 56%(유지)** → **MISS**. Street $12.5B 대비 **ABOVE** |
+| (c-2) 주가 방향 | Q2 비트 + 가이던스 인라인 → 하락 | **결론 `HIT` (−7.04%), 전제 불성립.** 가이던스가 인라인이 아니라 Street를 4% 상회했는데도 하락. 상세·해석은 §10-1 |
+| **(a-5) R2 A/B** | A(below-OP=0) vs B(중앙값 +128) | **B 승** (MAPE 17.32% vs 22.10%) — 단 실제 561은 **중앙값의 4.4배**라 B조차 크게 미달 |
+| 밴드 커버리지 | 3개 지표 | **3/3 전부 밴드 내** |
+
+### 9-4. 스윙팩터 발화 여부
+
+- **SF1 (GM 믹스)** — 발화하지 않았다. 실제 non-GAAP GM은 가이던스 56%에 정확히 안착. 우리의 "+50bp 상회" 논거(Q4'25 +250bp 비트)는 표본 2개짜리였고, 이번엔 재현되지 않았다.
+- **SF2 (below-OP + 세율)** — **완전 발화. 이번 분기 오차의 전부다.** below-OP는 6분기 연속 양수였고 이번엔 사상 최대. 세율도 9.88%로 우리 bull 시나리오(11%)보다 낮았다.
+- **SF3 (워런트)** — **10-Q로 해소(§10-2).** 이번 분기 vest·행사 0주, 재무제표 영향 없음. **미발화**. (보도자료 단계에서는 확인 불가였고, `still_unknown`으로 둔 판단 자체는 옳았다.)
+- **SF4 (기저왜곡)** — **정확히 발화.** DC는 헤드라인 **YoY +107%**지만 **QoQ +16.3%**다. YoY만 읽으면 완전히 오독한다. QoQ 병기 결정이 옳았다.
+- **SF5 (RW 벤치마크)** — 매출 MASE 0.050(우수), **EPS MASE 0.501** — RW보다는 낫지만 매출 대비 10배 열위. 하이퍼사이클 경고가 EPS에서 현실화.
+
+### 9-5. §5 개선안에 대한 판정 갱신
+
+| # | 항목 | 발표 후 판정 |
+|---|---|---|
+| **P0-1** | 조건부 R2(부호 안정성 게이트) | **부분 지지, 그러나 불충분.** 부호는 6/6 안정이었으므로 게이트는 통과했을 것이고 B가 A를 이겼다. **그러나 실제 561은 중앙값의 4.4배** — 앵커를 중앙값으로 바꿔도 오차의 대부분이 남는다. → **결론 수정: 앵커 교체는 방향만 고치고 크기를 못 고친다. below-OP는 "앵커 문제"가 아니라 "분산 문제"다.** 실무적 함의는 (1) 부호는 앵커로, (2) 크기는 밴드로, (3) **투자 평가이익이 큰 발행사는 GAAP EPS 포인트 추정 자체를 REFUSE하고 non-GAAP만 채점**하는 선택지를 진지하게 볼 것. VST에서 예정된 "GAAP 포인트 REFUSE" 판정과 같은 계열이다. |
+| **P0-2→P1** | 워런트 필드(`revenue_contra_pct` / `incremental_diluted_shares`) | **필드는 유지하되 우선순위를 P1로 하향.** 10-Q는 2026-06-27 현재 OpenAI·Meta 워런트의 vest·행사가 없고 당분기 재무제표 영향도 없었다고 확인한다. 이번 분기에는 불필요했지만 향후 tranche가 vest되는 분기에는 일반화된 희석 레버가 필요하다. |
+| **P1-3** | in-sample 백테스트 경고 자동화 | **강하게 지지.** 백테스트 매출 MAPE 1.1%였는데 실전 매출 MAPE는 0.99% — 우연히 비슷했으나, 백테스트 EPS MAPE 12.8% vs 실전 22.1%로 EPS는 크게 벌어졌다. in-sample 수치를 스킬로 읽는 위험이 실증됐다. |
+| **P1-4** | `guidance_history` 1급 필드화 | **지지, 단 캘리브레이션 필요.** 실제 비트는 **+3.00%**로 관측 4분기 최소(+3.85%)보다도 낮았다. 우리 가정 +4.0%는 1.0pp 과대. **비트 폭이 계속 감쇠 중**(6.98 → 4.62 → 3.00)이라는 게 이번 데이터의 핵심이며, 단순 평균이 아니라 **추세 감쇠를 반영한 추정**이 필요하다. |
+| **신규 P0-5** | **(c) 가이던스 예측 로직 재설계** | 이번 최대 실패다. 우리는 "Helios 시스템 매출 → GM 희석 → GM 가이던스 하향"과 "H2 클라이언트+게이밍 −20% → 매출 가이던스 보수적"을 결합해 $12.5B/55%를 냈다. 실제는 $13.0B/56%로 **둘 다 반대**였다. Data Center 램프가 클라이언트 역풍을 압도했다. → 가이던스 예측을 **세그먼트 합산이 아니라 회사의 가이던스 습관(직전 actual 대비 배수)** 으로 세우는 편이 나았을 수 있다: 실제 $13.0B / 직전 actual $11,536M = **+12.7%**로, 과거 Q3 슬롯 가이던스 배수(+13.2%)와 거의 같다. **이 규칙이었다면 맞혔다.** |
+
+### 9-6. 다음 액션
+
+1. ~~**10-Q 제출 시 `actual_source_stage: 10q`로 재채점**~~ → **완료. §10-2 참조** (워런트: vest 0주·영향 없음 / 평가이익: 피투자사 상장에 따른 미실현 마크 / 세율: FDDEI + R&D 크레딧, 일회성 아님).
+2. ~~**(c-2) 주가 채점**~~ → **완료. §10-1 참조** — −7.04%로 `HIT`이나 전제(가이던스 인라인)는 불성립.
+3. **P0-5(가이던스 예측 로직)** 를 이번 배치의 최우선 개선안으로 승격 — SPCX/SNDK/VST 세션에 즉시 적용 가능.
+
+---
+
+## §10 갱신 (2026-08-07 11:25 ET / 08-08 00:25 KST) — (c-2) 확정 및 10-Q 재채점
+
+Codex 제안 범위(10-Q 재채점 + 주가 채점만 독립 검증)로 진행했다. 최초 탐색에서는 10-Q를 발견하지 못했으나, 이후 제출 문서를 확인해 두 항목 모두 완료했다.
+
+### 10-1. (c-2) 주가 방향 — **HIT (확정)**, 다만 이유가 우리 전제와 다르다
+
+사전 고정 기준(발표일 정규장 종가 → 익영업일 정규장 종가, 시간외 제외)에 따라:
+
+| | 값 |
+|---|---|
+| 2026-08-04 정규장 종가 (프린트 당일, 발표는 마감후) | **$518.58** |
+| 2026-08-05 정규장 종가 (익영업일) | **$482.05** |
+| 실현 등락 | **−7.04%** |
+| 주장 | `down` → **HIT** |
+| 옵션 내재 밴드(±12.28%) 이내 | **True** |
+| 출처 | stockanalysis.com/stocks/amd/history, 2026-08-07 11:25 ET 취득. **시간외 호가는 쓰지 않았다**(기준 사전 고정) |
+
+**그러나 전제는 틀렸다.** 우리 주장의 조건은 "Q3 가이던스가 컨센 **인라인**"이었는데 실제 가이던스는 $13.0B로 Street $12.5B를 **$500M(+4%) 상회**했다. 그런데도 주가는 −7% 빠졌다.
+
+**시장이 댄 이유는 마진이다.** 보도에 따르면 GAAP 총이익률 54%가 시장이 기대하던 수준을 밑돌았고, CFO의 **"Helios 램프에 따른 단기 마진 압박"** 코멘트가 매도의 방아쇠였다. 참고: 프린트 당일(8/4) 주가는 이미 **+7.0%**(484.64 → 518.58) 오른 상태였다 — 즉 기대가 선반영된 자리에서 마진 이슈가 나왔다.
+
+→ **판정: 결론 HIT, 명시한 전제(가이던스 인라인) 불성립, 그러나 실제 하락 사유는 우리가 §(b-4)·SF1에 사전등록한 "Helios 시스템 믹스 → 마진 압박" 메커니즘과 일치한다.**
+우리는 그 메커니즘을 **Q3 GM 가이던스 숫자(55%)** 로 표현했고 회사는 56%로 가이던스했으므로 **숫자로는 틀렸지만 메커니즘으로는 맞았다.** 다음 분기 설계에 넘길 교훈은 이것이다 — **주가 반응 예측은 "가이던스 숫자 vs 컨센"보다 "무엇이 그 분기의 논쟁 지점인가"에 걸어야 한다.** 이번엔 논쟁 지점이 매출이 아니라 마진이었고, 우리는 그걸 이미 SF1의 "최대 레버"로 지목해 두고도 (c-2)의 조건절에는 매출 가이던스를 넣었다.
+
+### 10-2. 10-Q 재채점 — **완료.** (직전 판정 "문서 미제출"은 오류였다)
+
+> **⚠ 정정.** 이 절의 최초 버전은 "2026-08-07 기준 10-Q 미제출"이라고 적었다. **틀렸다.**
+> **Q2 2026 10-Q는 accession `0000002488-26-000123`(`amd-20260627.htm`), 기간 종료 2026-06-27, 제출일 2026-08-05로 이미 존재한다.** Codex 지적으로 확인하고 원문을 직접 열어 재현했다.
+>
+> **왜 틀렸나 — 재사용할 방법론 결함 2가지:**
+> 1. **`companyconcept` XBRL 엔드포인트를 "제출 여부" 판정에 썼다.** 이 API는 제출 후에도 며칠 지연된다 — **2026-08-07 현재도** `RevenueFromContractWithCustomerExcludingAssessedTax` / `OperatingIncomeLoss` 모두 **2026Q2 항목이 없다**(재확인함). 즉 "XBRL에 없음"은 "제출 안 됨"이 아니다. → **제출 여부는 반드시 filing index(`FilingSummary.xml` / Archives 디렉터리 / IR 공시목록)로 확인할 것.**
+> 2. **`browse-edgar` HTML 목록을 교차검증으로 썼는데 그것도 최신을 안 보여줬다.** 두 소스가 같은 방향으로 틀리면 "2경로 확인"은 확인이 아니다. **독립적이지 않은 두 소스는 한 소스다.**
+
+**추출 경로 (§7 계약 관련):** 10-Q 본문을 WebFetch로 직접 받으면 **markdown 변환이 MD&A·주석 앞에서 잘린다** — §7이 경고한 "예외 없이 반쯤 비어서 성공하는" 추출 그대로다(본문 fetch에서 "warrant" NOT FOUND가 나왔으나 이는 **추출 실패**이지 사실이 아니었다). → **렌더링된 R-파일 단위로 우회**해 해결했다: `FilingSummary.xml`로 노트 목록을 얻고 `R19`(Common Stock & SBC), `R20`(Income Taxes), `R15`/`R41`(Financial Instruments)을 개별 fetch. 작은 페이지라 잘리지 않는다. **이 우회 경로를 표준 절차로 승격할 것.**
+
+**해소된 3건 (모두 원문 인용):**
+
+| # | 항목 | 10-Q 원문 |
+|---|---|---|
+| SF3 워런트 | **해소 — 미발화** | R19: "In October 2025 and February 2026, the Company issued warrants to OpenAI OpCo, LLC (OpenAI) and Meta Platforms, Inc. (Meta)", "each entitling the holder the right to purchase up to 160 million shares … at an exercise price of $0.01 per share". 베스팅은 "specified AMD Instinct™ GPU purchase milestones … and achievement of specified stock price targets" + 추가 기술·상업 조건. **"As of June 27, 2026, no warrant shares had vested or become exercisable, and the warrants had no impact on the Condensed Consolidated Financial Statements."** → 우리가 희석주식수 1,659M(가정 대비 +0.06%)로부터 추론한 "이번 분기 희석 미반영"이 **정확히 맞았다.** |
+| 기타수익 $598M | **해소 — 비경상 이벤트성** | R15: "Long-term investments primarily consist of equity investments in **previously non-marketable equity securities that became publicly traded during the second quarter of fiscal year 2026** and were reclassified to Level 1." · "As of June 27, 2026, **net unrealized gains from marketable equity securities were $425 million** and were not material as of December 27, 2025." (비상장분 누적 미실현이익은 $118M.) → **피투자사 상장에 따른 미실현 평가이익**이다. 실현 현금이 아니다. |
+| 유효세율 9.8% | **해소 — 구조적 + 일부 일회성 아님** | R20: 법인세 $252M, **"representing an effective tax rate of 9.8%"**. 21% 법정세율 대비 하락 요인은 **"income tax benefit from foreign-derived deduction eligible income (FDDEI)"** 와 **"research and development (R&D) tax credits"**. → 밸류에이션 얼라운스 환입 같은 **일회성이 아니라 반복 가능한 구조적 항목**이다. |
+
+**보너스 확인:** R20은 전년 동기(2025Q2)에 **약 $853M의 discrete benefit**(dual consolidated losses에 대한 IRS reasonable cause relief 승인)이 있었다고 밝힌다. 이는 §2 데이터 수집 때 관측한 2025Q2 법인세 **−$834M**의 정체를 사후 확인해 준다 — actuals 무결성 로그와 원문이 일치한다.
+
+**§9 결론에 미치는 영향 (강화 방향):**
+- **below-OP "분산 문제" 판정이 더 강해졌다.** 단순히 분산이 큰 게 아니라 **피투자사 IPO라는 이벤트에 걸린 비경상·비현금 마크**다. 앵커든 밴드든 사전에 맞힐 수 있는 성질이 아니다. → **P0-1의 실무 결론(투자 평가이익이 큰 발행사는 GAAP EPS 포인트 REFUSE, non-GAAP만 채점)이 더 설득력을 얻는다.**
+- **세율 9.8%는 반대로 예측 가능했어야 한다.** FDDEI + R&D 크레딧은 반복 항목이다. 우리 base 15%는 과거 실측(11.0~23.1%)의 중앙 부근이었지만 **구조적 하락 추세를 못 읽었다.** R3(시나리오별 세율)는 지켰으나 밴드 하단(bull 11%)조차 실제(9.8%)를 못 덮었다 — **세율 밴드를 넓히는 게 아니라 세제 항목을 읽어야 한다는 뜻.**
+- **P0-2(워런트 필드) 판정: 이번 분기에는 불필요했다.** 다만 워런트는 **존재하며 마일스톤·주가 목표에 걸려 있다** — 베스팅이 시작되는 분기에는 반드시 필요하다. **필드는 유지하되 우선순위를 P0 → P1로 내린다.**
+
+### 10-3. 이번 갱신에서 하지 않은 것 (범위 규율)
+
+- **P0 개선안 구현 안 함** — P0-1(조건부 R2) / P0-2→P1(워런트 필드) / 신규 P0-5(가이던스 로직)는 **승인 대기** 상태 유지. 스키마·엔진 변경은 다른 종목(SPCX·SNDK·VST)의 미커밋 작업과 얽히므로 별도 세션에서 다뤄야 한다.
+- **다른 종목 미커밋 파일 손대지 않음** — `NOTICED BUT NOT TOUCHING`.
+- **FROZEN 리포트·프로파일 무수정** — sha256 `9b49506d…a887e` / `c82117da…44ce` 불변 재확인.
+
+### 10-4. 운영 메모 (Codex 보고)
+
+호스트(Windows)에서 `scripts/score_amd_q2_2026.py`를 처음 실행하면 **cp949 출력 오류**가 난다(리포트가 한글). `PYTHONIOENCODING=utf-8` 설정 후 정상. CLAUDE.md의 cp949 가드 관례와 같은 계열이며, 스크립트 docstring에 명시했다.
+
+### 10-5. 다음 액션 (갱신)
+
+1. ~~10-Q 재채점~~ **완료** — 현행 스코어카드는 `actual_source_stage: 10q` 기준이다.
+2. **P0-5(가이던스 예측 로직)** 를 SPCX·SNDK·VST 세션에 먼저 적용 — 이번 배치에서 가장 즉시 재사용 가능한 산출물.
+3. **(c-2) 조건절 재설계** — §10-1의 교훈("논쟁 지점"에 걸어라)을 다음 종목 FROZEN에 반영.
+4. **세율 앵커 방법론** — 실측 분포가 아니라 **세제 항목(FDDEI·R&D 크레딧 등) 기반**으로 세우는 안을 P1로 신규 등록.
+5. **§7 추출 절차에 R-파일 우회를 표준으로 명문화** + **"제출 여부는 filing index로만 확인"** 규칙 추가.
+
+---
+
+## §11 Codex 구현 위임 명세 (2026-08-08 확정)
+
+**결정: AMD 채점 사이클은 종료. 남은 개선안 구현을 Codex에 위임한다.**
+§5는 발표 전 제안, §9-5·§10-2는 발표 후 판정이다. **이 절이 그 둘을 합쳐 구현 가능한 형태로 확정한 유일한 명세**이며, 충돌 시 이 절이 우선한다.
+
+### 11-0. 절대 불변식 (하나라도 깨지면 그 변경은 되돌린다)
+
+| 대상 | 값 | 확인 방법 |
+|---|---|---|
+| SK하이닉스 9Q backtest | sandbox(CPython≤3.11) `077ecb10986a5f2a7e81b31dc595ae47077b8ed7d6fb3ababfb1d5073891933c` · host(≥3.12) `b979d79f…f6e7` | `python3 scripts/verify_9q_sha.py` — **실행 환경을 함께 기록할 것**(§ERRATA E-4) |
+| AMD forecast 산출물 | 파일 sha `8762040190048e6d34969b6660791b91393c8d46ff0232ea996ed3345147adb3` · 정렬 JSON sha `30539b14d3840ebb3ebd251419da679d754ff2c05468ad39b3139dd24429b869` | 프로파일 무변경 시 **bit-identical 유지** |
+| AMD 프로파일 | `c82117dae6374dc7c71a51d2abb6d95b1a25700f97c7f41a90a137ff075b44ce` | **수정 금지** — 동결 근거 |
+| FROZEN 리포트 | `9b49506dd36ef0994337242118e0c61e18706e4257da25168579ad13ce9a887e` (416줄, `[PRE-PRINT ERRATA]` 포함) | **수정 금지.** `scripts/score_amd_q2_2026.py`의 `FROZEN_SHA256` 핀이 이 값이다. 한 번 유실된 이력이 있으니(§10-2 3항) 세션 말미에 재대조할 것 |
+| 전체 테스트 | **290 passed, 1 deselected** | 기존 테스트 **수정 금지**, 신규만 추가 |
+
+**모든 신규 필드는 `optional`, 기본값은 "현행 동작"이어야 한다.** 필드 부재 시 기존 5종 프로파일(GOOGL·TSLA·IBM·GEV·TXN)과 AMD의 forward 출력이 bit-identical이어야 한다 — 이것이 각 항목의 첫 번째 테스트다.
+
+### 11-1. **P0-5 + P1-4 — 가이던스를 1급 필드로** (최우선, 즉시 재사용)
+
+**근거:** 이번 배치 최대 실패는 (c) Q3 가이던스였고(우리 $12.5B/GM 55% vs 실제 $13.0B/GM 56%, 둘 다 반대), 동시에 매출 콜을 성공시킨 논거도 가이던스 통계였다(§9-3, §10). 그런데 그 통계가 지금은 **YAML 주석에만 있다.** 문서가 아니라 코드로 만든다.
+
+**스키마 (신규, optional):**
+```yaml
+guidance_history:                       # 발행사가 낸 가이던스와 그 결과
+  - {quarter: "2025Q2", guide_mid: 7400,  guide_band: 300, actual: 7685}
+  - {quarter: "2025Q3", guide_mid: 8700,  guide_band: 300, actual: 9246}
+  - {quarter: "2025Q4", guide_mid: 9600,  guide_band: 300, actual: 10270}
+  - {quarter: "2026Q1", guide_mid: 9800,  guide_band: 300, actual: 10253}
+  - {quarter: "2026Q2", guide_mid: 11200, guide_band: 300, actual: 11536}
+```
+
+**엔진이 파생할 것 (두 통계는 용도가 다르다 — 섞지 말 것):**
+1. **beat 분포** = `actual / guide_mid − 1`. AMD 실측 `[+3.85%, +6.28%, +6.98%, +4.62%, +3.00%]`. **용도: 당분기 매출 포인트**(가이던스가 이미 나와 있을 때).
+   **⚠ 단순 평균 금지.** 감쇠 중이다(6.98 → 4.62 → 3.00). 최소한 선형 추세 또는 지수가중(반감기 2분기)으로 추정하고, **추정치와 함께 밴드를 낸다.**
+2. **guide multiple** = `guide_mid(N+1) / actual(N)`, **캘린더 슬롯별**. **용도: 차기 가이던스 예측**(§10의 P0-5 본체). AMD 실측: Q3 슬롯 = 8700/7685 = **1.132**, 이번 실제 = 13000/11536 = **1.127**.
+
+**실패하는 테스트 (먼저 작성):**
+- `test_guidance_history_absent_is_bit_identical` — 필드 없는 기존 5종 프로파일 forward 출력 불변.
+- `test_amd_beat_series_reproduces` — 위 5개 beat 값을 소수점 2자리까지 재현.
+- `test_decay_estimator_would_not_have_overcalled` — 앞 4개만 입력했을 때 추정 beat ≤ **+4.0%**(우리가 실제로 쓴 값)이고, 실현치 +3.00%가 추정 밴드 안에 든다.
+- `test_guide_multiple_predicts_q3_guide` — 히스토리의 Q3 슬롯 배수 × actual 11,536 이 실제 가이던스 $13.0B의 **±2% 이내**.
+
+**수용 기준:** AMD 프로파일에 `guidance_history`를 추가해도 **forward 출력이 불변**이어야 한다(이 필드는 진단·리포트용이지 forward 체인 입력이 아니다). 리포트에 두 통계를 표로 출력한다.
+
+### 11-2. **P1 — 세율을 실측 분포가 아니라 세제 항목으로**
+
+**근거(§10-2):** 실제 ETR 9.8%의 원인은 R20이 명시한 **FDDEI 혜택 + R&D 세액공제** — **반복 항목**이다. 우리 base 15%는 과거 실측(11.0~23.1%)의 중앙 부근이었고 bull 11%조차 실제를 못 덮었다. **밴드를 넓히는 건 오답이고, 항목을 읽는 게 정답이다.**
+
+**스키마 (신규, optional — 있으면 `effective_tax_rate`를 대체):**
+```yaml
+tax_drivers:
+  statutory_rate: 0.21
+  recurring_deductions:                 # 반복 항목만. 일회성은 여기 넣지 말 것
+    - {name: "FDDEI", bps: -700, source: "10-Q 0000002488-26-000123 R20"}
+    - {name: "R&D credit", bps: -350, source: "동일"}
+  discrete_items_bps: 0                 # 일회성. base는 항상 0(R3 정신), 밴드로만
+```
+`effective_tax_rate = statutory + Σ recurring + discrete`. **`discrete_items_bps`의 base는 0으로 강제**한다 — below-OP의 R2와 같은 논리이고, 이번 분기 전년 동기 $853M discrete benefit이 정확히 그 사례다.
+
+**실패하는 테스트:**
+- `test_tax_drivers_absent_is_bit_identical` — 기존 경로 불변.
+- `test_amd_q2_2026_tax_from_drivers` — 위 항목으로 계산한 ETR이 실제 **9.8%의 ±200bp** 이내.
+- `test_discrete_base_must_be_zero` — base 시나리오에서 `discrete_items_bps != 0`이면 로드 실패.
+
+### 11-3. **P0-1 — below-OP: 앵커가 아니라 "포인트 추정 거부"**
+
+**근거(§9-5, §10-2):** A/B에서 B(중앙값 앵커)가 이겼지만(22.10% → 17.32%) **실제 561은 중앙값의 4.4배**였고, 10-Q는 그 정체가 **피투자사 상장에 따른 미실현 마크**($425M)임을 확인했다. **이벤트성·비현금 항목은 앵커를 바꿔도 못 맞힌다.** 부호 안정성 게이트만으로는 부족하다.
+
+**스키마 (신규, optional):**
+```yaml
+below_op_policy:
+  sign_stability_gate: 6                # 최근 N분기 동부호면 base 부호를 허용(아니면 0)
+  band_from: "mad"                      # 밴드는 실측 분산(MAD×k)에서
+  refuse_gaap_point_if_cv_over: 1.0     # below-OP 변동계수가 이 값을 넘으면
+```
+`refuse_gaap_point` 발동 시 엔진은 **GAAP EPS 포인트를 내지 않고 밴드만** 낸다(`eps_diluted=None`, `eps_band=(lo,hi)`). non-GAAP 채점은 그대로 진행한다. **VST의 "GAAP 포인트 REFUSE" 판정과 같은 계열이며, 두 종목을 같은 메커니즘으로 처리할 수 있는지가 이 항목의 진짜 시험이다.**
+
+**실패하는 테스트:**
+- `test_below_op_policy_absent_is_bit_identical`
+- `test_amd_refuse_gate_fires_and_band_covers_actual` — AMD below-OP 실측(19/172/126/322/128/561)의 CV로 게이트가 발동하고, 산출 밴드가 실제 GAAP EPS **1.38을 포함**한다.
+- `test_non_gaap_scoring_unaffected_by_refusal` — REFUSE 상태에서도 non-GAAP 채점 경로는 정상.
+
+### 11-4. **P1 — 워런트/고객 대가 필드** (우선순위 하향, 그러나 폐기 아님)
+
+**근거(§10-2):** 10-Q R19 — OpenAI·Meta 각 최대 1.6억주 @ $0.01, **2026-06-27 현재 vest·행사 0주, 재무제표 영향 없음.** 이번 분기엔 불필요했다. 그러나 워런트는 **존재하고 마일스톤·주가목표에 걸려 있어** 베스팅 분기에는 반드시 필요하다.
+
+**스키마 (신규, optional, 기본 0):**
+```yaml
+customer_consideration:
+  revenue_contra_pct: 0.0               # ASC 606 고객대가 → 매출 차감
+  incremental_diluted_shares: 0         # 해당 분기 가중평균 증분 희석주식수
+```
+**⚠ 필드명이 계약이다(ERRATA E-7).** `warrant_dilution_shares`는 폐기 — 최대 발행가능주식수를 그대로 더하는 오용을 부른다. 입력값은 **마일스톤 충족·측정기간·treasury-stock method를 반영한 분기 가중평균 증분치**여야 하며, 이를 필드 docstring에 명시할 것.
+
+**실패하는 테스트:**
+- `test_customer_consideration_default_zero_is_bit_identical`
+- `test_contra_revenue_hits_revenue_lever_only` — `revenue_contra_pct` 설정 시 매출 레버만 움직이고 마진 레버는 불변.
+- `test_incremental_shares_hits_share_lever_only`
+
+### 11-5. **P1-3 — in-sample 백테스트 경고 자동화**
+
+`backtest_methodology`를 `actuals`에서 유도했으면 매출 MAPE가 구조적으로 낮게 나온다(AMD 1.1%). 자동 탐지는 어려우므로 **명시 플래그**로 간다:
+```yaml
+backtest_methodology:
+  derived_from_actuals: true            # 신규, 기본 false
+```
+`true`면 리포트에 경고를 자동 출력한다 — "이 구간의 MAPE는 in-sample 적합이며 out-of-sample 예측력이 아니다. 비교 가능한 지표는 MASE/Theil뿐." 현재는 사람이 FROZEN에 손으로 적고 있다(§8).
+**테스트:** 플래그 true인 AMD 리포트에 경고 문자열 존재, false/부재면 미출력.
+
+### 11-6. 범위 규율
+
+- **건드리지 말 것:** `cli.py` · `engine/segment_revenue.py` · `engine/margin_model.py` · `schemas/models.py`의 메모리 경로(SK하이닉스). 9Q 불변식이 여기 걸려 있다.
+- **다른 종목 미커밋 작업(SPCX·SNDK·VST)과 얽히지 않게** 항목 단위로 커밋할 것. 한 커밋 = 한 스키마 항목 + 그 테스트.
+- 인접 코드 문제는 고치지 말고 `NOTICED BUT NOT TOUCHING: file:line 증상`으로만 기록.
+- 리포트가 한글이므로 호스트 실행 시 `PYTHONIOENCODING=utf-8` (§10-4).
+
+### 11-7. 구현 후 Codex 6축 자문 (이 단계용으로 갱신)
+
+1. **정확성** — 각 신규 필드가 부재일 때 기존 6종(5종 + AMD) forward 출력이 **bit-identical**인가? 11-0의 sha 4개가 전부 그대로인가?
+2. **건전성** — 새 앵커(가이던스 통계·세제 항목)의 표본기간과 출처가 명시됐나? **AMD 2026Q2 결과를 보고 역산해 맞춘 파라미터는 없나?** (이번 분기 데이터로 튜닝하면 그 순간 사후확증이 된다 — 특히 11-1의 감쇠 추정기와 11-2의 bps 값이 위험하다.)
+3. **회귀안전** — 9Q sha가 **양 환경에서** MATCH인가? 환경을 함께 기록했나?
+4. **범위규율** — 11-6을 지켰나? 항목별 커밋인가? 메모리 경로 무변경인가?
+5. **검증가능성** — 11-1~11-5의 실패하는 테스트를 **구현 전에** 작성했나? 각 항목이 "이 테스트가 빨간색이었다가 초록색이 됐다"로 설명되나?
+6. **유지보수성** — 종목 고유값이 `engine/`·`schemas/`에 침투하지 않고 전부 프로파일 YAML에 있나? **11-3의 `refuse_gaap_point`가 AMD와 VST 양쪽을 같은 메커니즘으로 처리하는가** — 이게 이번 배치 최대 재사용 산출물의 검증 지점이다.
+
+### 11-8. 권장 순서
+
+**11-1(가이던스) → 11-2(세율) → 11-5(경고) → 11-3(below-OP REFUSE) → 11-4(워런트).**
+앞의 셋은 진단·리포트 레이어라 forward 체인을 건드리지 않아 위험이 낮다. 11-3은 산출물 형태(포인트 → 밴드)를 바꾸므로 가장 신중해야 하고, VST 세션과 조율이 필요하다. 11-4는 베스팅이 시작되기 전까지는 급하지 않다.
+
+### 11-9. ⚠ 배치 결론과의 정합 — **11-3을 단독으로 구현하지 말 것**
+
+이 문서는 AMD 단일 종목 핸드오프다. 그런데 **SPCX·SNDK·VST 채점이 끝나면서 배치 레벨 결론이 나왔고, 그것이 §11-3보다 상위 개념이다.** Codex는 두 문서를 함께 읽어야 한다.
+
+**배치 결론 (2026-08-08 확정): 모델은 영업이익 단계까지 매우 정확하고, GAAP EPS 오차의 대부분은 below-OP에서 나온다. 세 종목이 독립적으로 같은 곳을 가리켰다.**
+
+| 종목 | 비GAAP EPS 오차 | GAAP EPS 오차 | 지배 오차원 |
+|---|--:|--:|---|
+| SNDK | **−0.92%** (영업이익 +0.12%) | −12.28% | OP→NI **90.2%** — 신설 라인 지분증권 평가이익 +$804M |
+| **AMD** | **정확 일치** ($1.66) | **−22.1%** | OP→NI **120%** — 피투자사 상장 미실현 마크 |
+| VST | (사전 GAAP REFUSE 판정) | — | 파생 MTM이 GAAP OP를 지배 |
+
+**따라서 §11-3의 `refuse_gaap_point_if_cv_over`는 AMD 국소판이다. 상위 제안 세 건에 종속시켜 구현할 것:**
+
+- **P0-A (계약 개정)** — COMMON/DELTA의 **헤드라인 채점 지표를 비GAAP(또는 영업이익)으로 전환**하고 GAAP EPS는 밴드만 제시. **계약 개정이므로 별도 승인이 필요하다.** §11-3을 먼저 구현하면 승인 전에 기정사실이 되므로, **P0-A 승인 전까지 §11-3은 착수 금지**로 순서를 바꾼다(§11-8의 4순위 → 보류).
+- **P1-C** — below-OP 밴드는 **매출 대비 절대금액이 아니라 OP 대비 비율의 극단분위수**(최소 ±15% of OP). §11-3의 `band_from: "mad"`를 이 규격으로 대체할 것.
+- **P1-A** — **(c)에 "가이던스 mid vs 컨센 mid" 비교를 필수 항목으로.** 이건 §11-1에 직접 붙는다 — AMD (c) MISS의 본질이 "가이던스 절대값"이 아니라 **컨센 대비 상대위치**였고(우리는 $12.5B를 맞히려 했으나 시장이 본 건 Street 대비 위치), SNDK가 더블 비트에도 이틀 −9.6%로 같은 것을 확인했다(FY27Q1 가이드 mid $10.55B < 스트리트 $10.82B). **§11-1의 guide multiple 추정기 출력에 반드시 컨센 mid 대비 위치를 함께 내도록 할 것.**
+
+**AMD 데이터가 배치 결론에 보태는 것 —** SNDK의 교훈은 "사전에 이름 붙인 항목(Flash Ventures 지분법)이 아니라 **직전 분기까지 존재하지 않던 신설 라인**이 원인이었다 → **항목 열거식 방어는 원리적으로 불가능**"이었다. **AMD가 이를 독립적으로 재확인한다**: 우리가 SF2에서 열거한 것은 "투자평가손익·이자·환·일회성·중단영업"이었고 실제 원인은 **피투자사가 분기 중 상장하면서 발생한 미실현 마크**였다. 열거 목록에 "피투자사 IPO"는 없었고, 있을 수도 없었다. **below-OP 밴드 실패는 이제 5회 연속이다**(SK하이닉스 ×3 + SNDK + AMD).
+
+→ **Codex 6축 6항(유지보수성)의 검증 지점을 갱신한다:** "11-3이 AMD·VST를 같은 메커니즘으로 처리하는가"가 아니라 **"P0-A 체제에서 AMD·SNDK·VST·SK하이닉스 4종이 같은 메커니즘으로 처리되는가"** 이다.
+
+**갱신된 권장 순서: 11-1(+P1-A) → 11-2 → 11-5 → [P0-A 승인 대기] → 11-3(P1-C 규격) → 11-4.**
+
+### 11-10. **P0-A 조건부 승인 확정 (2026-08-08)** — `scored_target` 계약 + ★구현 차단 결함 1건
+
+**승인 계약 (원문, 이것이 최종 문구다):**
+
+> 헤드라인 채점은 발행사별로 선언된 `scored_target`을 사용한다. 우선순위는 ① 컨센서스와 동일 기준의 조정 지표, ② 검증 가능한 영업단계 지표다. GAAP EPS는 헤드라인에서 제외하고 P1-C 밴드로만 제시한다. 조정 브릿지를 검증할 수 없으면 **비교 불가**로 처리하며 임의 환산하지 않는다.
+
+**발행사별 적용:**
+
+| 발행사 | 헤드라인 | GAAP EPS |
+|---|---|---|
+| AMD | non-GAAP EPS | P1-C 밴드 |
+| SNDK | non-GAAP EPS | P1-C 밴드 |
+| VST | adjusted EBITDA | 보조 밴드 |
+| SK하이닉스 | 영업이익 | 보조 밴드 |
+| SPCX | 영업이익 또는 적자 상태 지표 | **EPS 헤드라인 금지** |
+
+**승인 조건 4가지 (전부 테스트로 고정할 것):**
+1. `scored_target`은 optional이며 **부재 시 기존 `gaap_eps` 동작 유지**.
+2. `scored_target`과 `consensus_basis`가 **불일치하면 fail-closed 또는 `COMPARISON_UNAVAILABLE`**.
+3. **GAAP EPS 계산 경로 자체는 삭제하지 않는다.** 헤드라인·signal·skill·consensus 비교에서만 제외.
+4. adjusted 지표에는 **재현 가능한 브릿지 또는 원문 actual**이 있어야 한다. 없으면 **영업이익으로 폴백**.
+
+**→ §11-3 착수 차단 해제.** 단 순서는 **`scored_target` 계약을 테스트로 먼저 고정 → 그 다음 P1-C 규격의 GAAP EPS 밴드 연결**이다. AMD 전용 `refuse_gaap_point_if_cv_over`를 그대로 구현하는 것은 **금지**(§11-3 원안 폐기, 이 절이 대체).
+
+---
+
+#### ★ 구현 차단 결함 — **엔진은 non-GAAP을 산출할 수 없다** (착수 전 결정 필요)
+
+본 세션에서 코드로 확인했다:
+
+```
+schemas/generic.py — GenericProfile + GenericScenarioAssumptions 전 필드 스캔
+  non-GAAP / adjusted / bridge / EBITDA 관련 필드: NONE — 엔진은 GAAP만 산출
+  scored_target / consensus_basis: NONE
+```
+
+즉 **승인 표의 "AMD·SNDK 헤드라인 = non-GAAP EPS"는 현행 코드로 만족시킬 수 없다.** 조건 4를 문자 그대로 적용하면 두 종목은 **영업이익으로 폴백**되어 승인 표와 어긋난다.
+
+원인은 채점의 두 변이 비대칭이기 때문이다:
+- **actual 쪽**: OK — AMD non-GAAP EPS $1.66은 보도자료 원문에 있다(조건 4의 "원문 actual" 충족).
+- **forecast 쪽**: **미충족** — FROZEN의 non-GAAP $1.66은 §3 (a-3)에서 **사람이 손으로 만든 브릿지**(GAAP OP 2,097 + SBC 500 + 무형상각 545 + 인수관련 30, 세율 13%)이지 엔진 출력이 아니다. `reports/amd_generic_forecast.json`에는 non-GAAP 라인이 없다.
+
+**선택지 (Codex가 고르지 말고 승인자에게 올릴 것):**
+
+| | 내용 | 평가 |
+|---|---|---|
+| **A. 브릿지를 엔진에 넣는다** (§5 P2-6을 **P0-B로 승격**) | 시나리오/분기별 `non_gaap_bridge: {sbc, intangible_amort, acq_costs, other, tax_rate}` → 엔진이 GAAP과 non-GAAP을 함께 출력 | **권장.** 승인 표에 가장 충실하고, 브릿지가 코드가 되어 검증 가능해진다. AMD FROZEN의 항목별 브릿지가 **첫 테스트 픽스처로 그대로 쓸 수 있다**(예상 non-GAAP EPS $1.66 재현) |
+| B. 조건 4를 문자대로 적용 | AMD·SNDK 헤드라인을 **영업이익으로 폴백** | 즉시 가능·코드 변경 최소. 그러나 승인 표와 불일치하므로 **표를 고쳐 재승인**해야 한다. AMD 영업이익 오차는 +0.75pp로 우수하니 실효는 나쁘지 않다 |
+| C. 수기 브릿지 잠정 허용 | `BRIDGE_MANUAL` 라벨을 달고 통과 | **비권장.** 수기 브릿지가 채점 기준이 되면 사후 조정 여지가 생긴다 — 이 프로젝트가 통제해온 바로 그 위험이다 |
+
+**A를 택할 경우의 수용 기준:** AMD 프로파일에 `non_gaap_bridge`를 넣고 엔진을 돌렸을 때 2026Q2 non-GAAP EPS가 **$1.66 ± $0.01**로 나오고, 필드 부재 시 기존 6종 forward 출력이 bit-identical일 것.
+
+---
+
+#### 스키마 초안 (조건 1~4를 그대로 옮긴 것)
+
+```yaml
+scored_target: "non_gaap_eps"     # optional. 부재 시 gaap_eps(현행)
+                                  # enum: gaap_eps | non_gaap_eps | operating_income | adjusted_ebitda
+consensus_basis: "non_gaap_eps"   # 컨센서스가 어떤 기준인지 선언
+gaap_eps_presentation: "band"     # enum: point(현행) | band(P1-C) | suppressed
+```
+
+**실패하는 테스트 (구현 전 작성):**
+- `test_scored_target_absent_keeps_gaap_eps_headline` — 기존 6종 bit-identical(불변식 §11-0).
+- `test_basis_mismatch_is_fail_closed` — `scored_target != consensus_basis`이면 예외 또는 `COMPARISON_UNAVAILABLE`. **임의 환산 금지**가 핵심이다.
+- `test_gaap_eps_path_survives` — 헤드라인에서 빠져도 GAAP EPS 계산 자체는 살아 있고 밴드로 제시된다(조건 3).
+- `test_adjusted_without_bridge_falls_back_to_operating_income` — 조건 4.
+- `test_spcx_eps_headline_is_rejected` — 적자 발행사에 EPS 헤드라인을 선언하면 로드 실패. **설계 질문:** enum 제약만으로 부족하면 `forbid_targets: [...]`를 둘지 Codex 판단 후 제안할 것.
+- 종목별 스모크 5건 — 위 표대로 선언했을 때 각 발행사의 헤드라인 지표가 실제로 그것으로 바뀌는지.
+
+#### 통합 주의 — 기존 수기 구현을 흡수할 것
+
+`scripts/score_amd_q2_2026.py`에 이미 **조건 2의 손수 만든 판(版)**이 들어 있다: 엔진의 `consensus_eps`가 GAAP를 받는데 AMD 컨센은 non-GAAP이라, GAAP-등가 프록시($1.61 − 브릿지 $0.59 = $1.02)를 넣고 리포트에 "이 필드는 AMD에서 무효"를 인쇄하는 방식이다(모듈 docstring #1).
+→ `consensus_basis` + `COMPARISON_UNAVAILABLE`이 들어오면 **이 수기 우회를 제거하고 제네릭 경로로 교체할 것.** 두 구현이 공존하면 다음 종목에서 반드시 갈라진다.
+
+#### 베이스라인 재검증 (Codex 환경에서 pytest 미발견 건)
+
+본 세션 샌드박스에서 재확인했다 — **`pytest -q` 290 passed, 1 deselected** (CPython 3.11.15 / pydantic 2.13.3), `verify_9q_sha.py` sandbox canonical `077ecb10…933c` **MATCH**. §11-0의 불변식은 유효하며, Codex는 이 값을 착수 전 기준선으로 써도 된다. 호스트에서 pytest가 안 잡히면 `python -m pytest`로 실행할 것.
+
+#### 갱신된 권장 순서 (최종)
+
+**11-1(+P1-A) → 11-2 → 11-5 → [A/B/C 결정] → (A면 P0-B 브릿지) → 11-10 `scored_target` 계약 → 11-3을 P1-C 밴드로 연결 → 11-4.**
