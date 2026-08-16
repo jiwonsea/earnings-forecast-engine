@@ -72,9 +72,35 @@ Updated 2026-07-03 (post opex fix + 2026Q1 window extension + seed-implied share
 - Keep single-file Plotly HTML < 5MB — no Malgun.ttf embed, system fonts only.
 - DART API rate limit 1000/min — httpx retry / backoff.
 
+## Device Bridge Limits (measured 2026-08-12) — the "bridge keeps dropping" cause
+Every `device_bash` call is a **fresh bwrap sandbox** (`--unshare-pid --die-with-parent`). So:
+- **Hard 45 s wall per call.** At 45 s the whole PID namespace is torn down. Budget ~35 s.
+- **`nohup` / `&` do NOT survive the call** — verified: a backgrounded loop stops the instant the call returns. No daemons, no long pytest, no shell/cwd/env carry-over.
+- **A killed git leaves `.git/index.lock`, and the mount forbids unlink** (`rm` → "Operation not permitted"), so the lock is permanent → every later git command fails. This cascade is what looks like a dropped bridge. (One such lock sat stale from 2026-08-09 to 2026-08-12.)
+- Removal on the mount = `mv` into `_to_delete/` only. Overwrites work; deletes never do.
+- The VM's own disk (`/sessions`, ~9.8 G) is the tight one — tars + `pip install` fill it; the mount itself has ~800 G.
+- FUSE cost ≈ 3.5 ms/file: `du -sh` of the repo 5.8 s, `tar` incl. `.git` 15 s (of the 45 s budget).
+
+**Always run first, and after every git command:**
+```bash
+python scripts/bridge_ops.py preflight
+python scripts/bridge_ops.py git commit -m ...
+python scripts/bridge_ops.py run --budget 35 -- <cmd>
+python scripts/bridge_ops.py chunk --list <list> --state <state> -- <cmd with {}>
+python scripts/bridge_ops.py chunk --list <list> --state <state> --shell --command '<template using BRIDGE_ITEM>'
+```
+
+Git commands that touch the index leave a lock after every run on the mount, so cleanup must run after git. On the host, locks are preserved by default; `locks --stale-after 600` is explicit because age-based deletion can break a long-running git operation. For chunk resumes, `--assume-idempotent` approves retrying previously failed items only after confirming duplicate side effects are impossible; the tool cannot detect partial success.
+**Second, distinct failure — the MCP transport itself drops** (observed live 2026-08-12 07:22 KST+): all `mcp__remote-devices__*` tools vanish, `device_bash` → "No such tool available". The device VM keeps running (uptime continuous, mount and files intact). **Recovery is `RefreshMcpTools(server="remote-devices")`, not a new session** — tools came back in one call with no state loss. Only if `ls $HOME/mnt/<repo>` fails after that is the desktop app actually down.
+
 ## Verification
+
+```powershell
+python -m pytest tests/test_bridge_ops.py -q
+```
 - `pytest -q` — per-engine unit tests.
 - `python scripts/verify_anchor.py` — offline G1 gate: reproduce active forward anchors with zero network calls, then verify the canonical 9Q SHA.
+- `python -m pytest tests/test_frozen_integrity.py -q -s` — FROZEN Git/blob/profile-SHA gate; must run on the Windows host from a Git checkout.
 - `python cli.py --company sk_hynix --dry-run` — offline report from fixtures.
 - `python cli.py --company sk_hynix` — live pull, inspect HTML (run on host if sandbox network is blocked).
 - 9Q backtest MAPE: revisit assumptions if revenue > 10% or EPS > 25%.
