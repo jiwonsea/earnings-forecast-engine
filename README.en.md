@@ -1,5 +1,8 @@
 # Earnings Forecast Engine
 
+> **Archived repository (2026-08-23)**
+> This standalone repository has been merged into [`Business-Valuation-Tool/forecast`](https://github.com/jiwonsea/Business-Valuation-Tool/tree/main/forecast) and is no longer developed here. The final standalone state remains available at the [`efe-final-standalone`](https://github.com/jiwonsea/earnings-forecast-engine/tree/efe-final-standalone) tag.
+
 [한국어](README.md) | **English**
 
 Quarterly/annual forward-EPS model + consensus gap analysis + trailing 9Q backtest. Current coverage: SK Hynix (`000660.KS`). Forward window: **2026Q2–2027Q1** (seed = 2026Q1 actuals).

@@ -1,5 +1,8 @@
 # Earnings Forecast Engine
 
+> **보관된 저장소 (2026-08-23)**
+> 이 독립 저장소는 [Business-Valuation-Tool의 `forecast/`](https://github.com/jiwonsea/Business-Valuation-Tool/tree/main/forecast)로 병합되었으며 더 이상 여기서 개발하지 않습니다. 독립 저장소의 최종 상태는 [`efe-final-standalone`](https://github.com/jiwonsea/earnings-forecast-engine/tree/efe-final-standalone) 태그에서 확인할 수 있습니다.
+
 **한국어** | [English](README.en.md)
 
 분기·연간 EPS forward 모델 + 컨센서스 갭 분석 + 직전 9Q backtest. 현재 커버: SK하이닉스 (`000660.KS`). Forward 윈도: **2026Q2~2027Q1** (seed = 2026Q1 실적).
